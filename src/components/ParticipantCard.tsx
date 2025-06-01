@@ -19,8 +19,10 @@ interface ParticipantCardProps {
 }
 
 const ParticipantCard = ({ participant, isCurrentUser = false, videoRef, isVideoOn = true }: ParticipantCardProps) => {
+  console.log('Rendering participant card:', participant, 'isCurrentUser:', isCurrentUser);
+  
   const shouldShowVideo = isCurrentUser ? isVideoOn : !participant.is_video_off;
-  const isMuted = isCurrentUser ? !isVideoOn && participant.is_muted : participant.is_muted;
+  const isMuted = isCurrentUser ? !isVideoOn : participant.is_muted;
 
   return (
     <Card className={`glass-card ${isCurrentUser ? 'border-2 border-golden-400/50' : 'border border-golden-400/30'} relative overflow-hidden h-64 md:h-80`}>
@@ -40,7 +42,7 @@ const ParticipantCard = ({ participant, isCurrentUser = false, videoRef, isVideo
                   {participant.display_name.charAt(0).toUpperCase()}
                 </span>
               </div>
-              <p className="text-golden-200 text-sm">كاميرا أخرى</p>
+              <p className="text-golden-200 text-sm">فيديو المشارك</p>
             </div>
           </div>
         ) : (
@@ -63,7 +65,7 @@ const ParticipantCard = ({ participant, isCurrentUser = false, videoRef, isVideo
             {participant.display_name}{isCurrentUser ? ' (أنت)' : ''}
           </span>
           <div className="flex gap-1">
-            {isMuted && <MicOff className="w-4 h-4 text-red-400" />}
+            {(isCurrentUser ? !isVideoOn : participant.is_muted) && <MicOff className="w-4 h-4 text-red-400" />}
             {!shouldShowVideo && <VideoOff className="w-4 h-4 text-red-400" />}
             {participant.is_online && (
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse ml-1"></div>

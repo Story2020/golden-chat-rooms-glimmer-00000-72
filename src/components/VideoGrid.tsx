@@ -23,6 +23,9 @@ interface VideoGridProps {
 const VideoGrid = ({ participants, currentParticipant, userName, isVideoOn, showChat }: VideoGridProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  console.log('VideoGrid rendering with participants:', participants);
+  console.log('Current participant:', currentParticipant);
+
   useEffect(() => {
     const startVideo = async () => {
       if (!isVideoOn) return;
@@ -61,11 +64,6 @@ const VideoGrid = ({ participants, currentParticipant, userName, isVideoOn, show
     }
   }, [isVideoOn]);
 
-  const currentUserParticipant = currentParticipant ? {
-    ...currentParticipant,
-    display_name: userName
-  } : null;
-
   // Calculate grid columns based on number of participants and chat visibility
   const totalParticipants = participants.length;
   const gridCols = totalParticipants === 1 ? 'grid-cols-1' : 
@@ -75,24 +73,19 @@ const VideoGrid = ({ participants, currentParticipant, userName, isVideoOn, show
 
   return (
     <div className={`${showChat ? 'lg:col-span-3' : 'lg:col-span-4'} grid ${gridCols} gap-4 h-full`}>
-      {/* Current User Video */}
-      {currentUserParticipant && (
-        <ParticipantCard
-          participant={currentUserParticipant}
-          isCurrentUser={true}
-          videoRef={videoRef}
-          isVideoOn={isVideoOn}
-        />
-      )}
-
-      {/* Other Participants */}
-      {participants.filter(p => p.id !== currentParticipant?.id).map((participant) => (
-        <ParticipantCard
-          key={participant.id}
-          participant={participant}
-          isCurrentUser={false}
-        />
-      ))}
+      {/* All Participants */}
+      {participants.map((participant) => {
+        const isCurrentUser = participant.id === currentParticipant?.id;
+        return (
+          <ParticipantCard
+            key={participant.id}
+            participant={participant}
+            isCurrentUser={isCurrentUser}
+            videoRef={isCurrentUser ? videoRef : undefined}
+            isVideoOn={isCurrentUser ? isVideoOn : !participant.is_video_off}
+          />
+        );
+      })}
     </div>
   );
 };

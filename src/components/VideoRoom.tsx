@@ -26,6 +26,8 @@ const VideoRoom = ({ roomCode, userName, onLeaveRoom }: VideoRoomProps) => {
     leaveRoom
   } = useVideoRoom({ roomCode, userName });
 
+  console.log('VideoRoom state:', { participants, currentParticipant, isVideoOn, isAudioOn });
+
   const handleLeaveRoom = async () => {
     await leaveRoom();
     onLeaveRoom();

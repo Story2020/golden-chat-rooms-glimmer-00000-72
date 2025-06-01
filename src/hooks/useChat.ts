@@ -22,17 +22,27 @@ export const useChat = ({ roomCode, participantId }: UseChatProps) => {
   const [newMessage, setNewMessage] = useState('');
 
   useEffect(() => {
-    if (!participantId) return;
+    if (!participantId) {
+      console.log('No participant ID, skipping chat setup');
+      return;
+    }
 
     const loadMessages = async () => {
       try {
+        console.log('Loading messages for room:', roomCode);
+        
         const { data: room } = await supabase
           .from('rooms')
           .select('id')
           .eq('room_code', roomCode)
           .single();
 
-        if (!room) return;
+        if (!room) {
+          console.error('Room not found for chat');
+          return;
+        }
+
+        console.log('Loading messages for room ID:', room.id);
 
         const { data, error } = await supabase
           .from('messages')
@@ -45,13 +55,17 @@ export const useChat = ({ roomCode, participantId }: UseChatProps) => {
           .eq('room_id', room.id)
           .order('created_at', { ascending: true });
 
-        if (error) throw error;
+        if (error) {
+          console.error('Error loading messages:', error);
+          throw error;
+        }
 
+        console.log('Messages loaded:', data);
         setMessages(data || []);
 
         // Listen for new messages
         const channel = supabase
-          .channel('room-messages')
+          .channel(`room-messages-${room.id}`)
           .on(
             'postgres_changes',
             {
@@ -61,6 +75,8 @@ export const useChat = ({ roomCode, participantId }: UseChatProps) => {
               filter: `room_id=eq.${room.id}`
             },
             async (payload) => {
+              console.log('New message received:', payload);
+              
               // Get participant info for new message
               const { data: participant } = await supabase
                 .from('participants')
@@ -76,9 +92,12 @@ export const useChat = ({ roomCode, participantId }: UseChatProps) => {
               setMessages(prev => [...prev, newMsg]);
             }
           )
-          .subscribe();
+          .subscribe((status) => {
+            console.log('Chat subscription status:', status);
+          });
 
         return () => {
+          console.log('Cleaning up chat subscription');
           supabase.removeChannel(channel);
         };
       } catch (error) {
@@ -90,18 +109,26 @@ export const useChat = ({ roomCode, participantId }: UseChatProps) => {
   }, [roomCode, participantId]);
 
   const sendMessage = async () => {
-    if (!newMessage.trim() || !participantId) return;
+    if (!newMessage.trim() || !participantId) {
+      console.log('Cannot send message: missing content or participant ID');
+      return;
+    }
 
     try {
+      console.log('Sending message:', newMessage);
+      
       const { data: room } = await supabase
         .from('rooms')
         .select('id')
         .eq('room_code', roomCode)
         .single();
 
-      if (!room) return;
+      if (!room) {
+        console.error('Room not found when sending message');
+        return;
+      }
 
-      await supabase
+      const { error } = await supabase
         .from('messages')
         .insert({
           room_id: room.id,
@@ -109,6 +136,12 @@ export const useChat = ({ roomCode, participantId }: UseChatProps) => {
           message: newMessage.trim()
         });
 
+      if (error) {
+        console.error('Error sending message:', error);
+        throw error;
+      }
+
+      console.log('Message sent successfully');
       setNewMessage('');
     } catch (error) {
       console.error('Error sending message:', error);

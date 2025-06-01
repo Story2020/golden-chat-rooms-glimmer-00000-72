@@ -27,6 +27,8 @@ export const useVideoRoom = ({ roomCode, userName }: UseVideoRoomProps) => {
   useEffect(() => {
     const joinRoom = async () => {
       try {
+        console.log('Joining room with code:', roomCode);
+        
         // Check if room exists
         const { data: room, error: roomError } = await supabase
           .from('rooms')
@@ -35,10 +37,12 @@ export const useVideoRoom = ({ roomCode, userName }: UseVideoRoomProps) => {
           .single();
 
         if (roomError || !room) {
+          console.error('Room not found:', roomError);
           toast.error('الغرفة غير موجودة');
           return;
         }
 
+        console.log('Room found:', room);
         setRoomId(room.id);
 
         // Add participant to room
@@ -54,17 +58,21 @@ export const useVideoRoom = ({ roomCode, userName }: UseVideoRoomProps) => {
           .select()
           .single();
 
-        if (error) throw error;
+        if (error) {
+          console.error('Error adding participant:', error);
+          throw error;
+        }
 
+        console.log('Participant added:', participant);
         setCurrentParticipant(participant);
         toast.success('تم الانضمام إلى الغرفة بنجاح');
 
-        // Load all participants
-        loadParticipants(room.id);
+        // Load all participants initially
+        await loadParticipants(room.id);
 
         // Listen for participant changes
         const channel = supabase
-          .channel('room-participants')
+          .channel(`room-participants-${room.id}`)
           .on(
             'postgres_changes',
             {
@@ -73,13 +81,17 @@ export const useVideoRoom = ({ roomCode, userName }: UseVideoRoomProps) => {
               table: 'participants',
               filter: `room_id=eq.${room.id}`
             },
-            () => {
+            (payload) => {
+              console.log('Participant change detected:', payload);
               loadParticipants(room.id);
             }
           )
-          .subscribe();
+          .subscribe((status) => {
+            console.log('Subscription status:', status);
+          });
 
         return () => {
+          console.log('Cleaning up subscription');
           supabase.removeChannel(channel);
         };
       } catch (error) {
@@ -89,6 +101,8 @@ export const useVideoRoom = ({ roomCode, userName }: UseVideoRoomProps) => {
     };
 
     const loadParticipants = async (roomId: string) => {
+      console.log('Loading participants for room:', roomId);
+      
       const { data, error } = await supabase
         .from('participants')
         .select('*')
@@ -100,17 +114,20 @@ export const useVideoRoom = ({ roomCode, userName }: UseVideoRoomProps) => {
         return;
       }
 
+      console.log('Participants loaded:', data);
       setParticipants(data || []);
     };
 
-    joinRoom();
+    if (roomCode && userName) {
+      joinRoom();
+    }
   }, [roomCode, userName]);
 
   const toggleVideo = async () => {
     if (!currentParticipant) return;
 
     const newVideoState = !isVideoOn;
-    setIsVideoOn(newVideoState);
+    console.log('Toggling video to:', newVideoState);
 
     try {
       const { error } = await supabase
@@ -120,13 +137,12 @@ export const useVideoRoom = ({ roomCode, userName }: UseVideoRoomProps) => {
 
       if (error) throw error;
 
-      // Update current participant state
+      setIsVideoOn(newVideoState);
       setCurrentParticipant(prev => prev ? { ...prev, is_video_off: !newVideoState } : null);
 
       toast.info(newVideoState ? 'تم تشغيل الكاميرا' : 'تم إيقاف الكاميرا');
     } catch (error) {
       console.error('Error toggling video:', error);
-      setIsVideoOn(!newVideoState); // Revert on error
       toast.error('خطأ في تغيير حالة الكاميرا');
     }
   };
@@ -135,7 +151,7 @@ export const useVideoRoom = ({ roomCode, userName }: UseVideoRoomProps) => {
     if (!currentParticipant) return;
 
     const newAudioState = !isAudioOn;
-    setIsAudioOn(newAudioState);
+    console.log('Toggling audio to:', newAudioState);
 
     try {
       const { error } = await supabase
@@ -145,13 +161,12 @@ export const useVideoRoom = ({ roomCode, userName }: UseVideoRoomProps) => {
 
       if (error) throw error;
 
-      // Update current participant state
+      setIsAudioOn(newAudioState);
       setCurrentParticipant(prev => prev ? { ...prev, is_muted: !newAudioState } : null);
 
       toast.info(newAudioState ? 'تم تشغيل الصوت' : 'تم كتم الصوت');
     } catch (error) {
       console.error('Error toggling audio:', error);
-      setIsAudioOn(!newAudioState); // Revert on error
       toast.error('خطأ في تغيير حالة الصوت');
     }
   };
