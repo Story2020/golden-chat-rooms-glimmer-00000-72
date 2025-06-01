@@ -1,43 +1,24 @@
 
-import { useState, useEffect, useRef } from 'react';
+import { useRef, useEffect } from 'react';
 import { Send, Smile } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-
-interface Message {
-  id: string;
-  sender: string;
-  content: string;
-  timestamp: Date;
-  isOwn: boolean;
-}
+import { useChat } from '@/hooks/useChat';
 
 interface ChatPanelProps {
   roomCode: string;
+  participantId: string;
   userName: string;
 }
 
-const ChatPanel = ({ roomCode, userName }: ChatPanelProps) => {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      sender: 'أحمد محمد',
-      content: 'مرحباً بالجميع! 👋',
-      timestamp: new Date(Date.now() - 300000),
-      isOwn: false
-    },
-    {
-      id: '2',
-      sender: 'فاطمة علي',
-      content: 'أهلاً وسهلاً 😊',
-      timestamp: new Date(Date.now() - 240000),
-      isOwn: false
-    }
-  ]);
-  const [newMessage, setNewMessage] = useState('');
+const ChatPanel = ({ roomCode, participantId, userName }: ChatPanelProps) => {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const { messages, newMessage, setNewMessage, sendMessage } = useChat({
+    roomCode,
+    participantId
+  });
 
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -46,18 +27,7 @@ const ChatPanel = ({ roomCode, userName }: ChatPanelProps) => {
   }, [messages]);
 
   const handleSendMessage = () => {
-    if (!newMessage.trim()) return;
-
-    const message: Message = {
-      id: Date.now().toString(),
-      sender: userName,
-      content: newMessage,
-      timestamp: new Date(),
-      isOwn: true
-    };
-
-    setMessages(prev => [...prev, message]);
-    setNewMessage('');
+    sendMessage();
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -67,7 +37,8 @@ const ChatPanel = ({ roomCode, userName }: ChatPanelProps) => {
     }
   };
 
-  const formatTime = (date: Date) => {
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
     return date.toLocaleTimeString('ar-SA', { 
       hour: '2-digit', 
       minute: '2-digit',
@@ -87,34 +58,37 @@ const ChatPanel = ({ roomCode, userName }: ChatPanelProps) => {
         {/* Messages Area */}
         <ScrollArea className="flex-1 mb-4" ref={scrollAreaRef}>
           <div className="space-y-3 pr-4">
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex ${message.isOwn ? 'justify-end' : 'justify-start'}`}
-              >
+            {messages.map((message) => {
+              const isOwn = message.participant_id === participantId;
+              return (
                 <div
-                  className={`max-w-[80%] rounded-lg p-3 ${
-                    message.isOwn
-                      ? 'bg-golden-gradient text-black'
-                      : 'bg-black/30 text-golden-100 border border-golden-400/20'
-                  }`}
+                  key={message.id}
+                  className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
                 >
-                  {!message.isOwn && (
-                    <p className="text-xs font-semibold text-golden-300 mb-1">
-                      {message.sender}
-                    </p>
-                  )}
-                  <p className="text-sm leading-relaxed">{message.content}</p>
-                  <p
-                    className={`text-xs mt-1 ${
-                      message.isOwn ? 'text-black/70' : 'text-golden-200/70'
+                  <div
+                    className={`max-w-[80%] rounded-lg p-3 ${
+                      isOwn
+                        ? 'bg-golden-gradient text-black'
+                        : 'bg-black/30 text-golden-100 border border-golden-400/20'
                     }`}
                   >
-                    {formatTime(message.timestamp)}
-                  </p>
+                    {!isOwn && (
+                      <p className="text-xs font-semibold text-golden-300 mb-1">
+                        {message.participants?.display_name || 'مجهول'}
+                      </p>
+                    )}
+                    <p className="text-sm leading-relaxed">{message.message}</p>
+                    <p
+                      className={`text-xs mt-1 ${
+                        isOwn ? 'text-black/70' : 'text-golden-200/70'
+                      }`}
+                    >
+                      {formatTime(message.created_at)}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </ScrollArea>
 
@@ -146,22 +120,6 @@ const ChatPanel = ({ roomCode, userName }: ChatPanelProps) => {
           >
             <Send className="w-4 h-4 icon-3d" />
           </Button>
-        </div>
-
-        {/* Online Users */}
-        <div className="mt-4 pt-4 border-t border-golden-400/20">
-          <p className="text-xs text-golden-300/70 mb-2">المتصلون الآن:</p>
-          <div className="flex flex-wrap gap-1">
-            <span className="text-xs bg-green-600/20 text-green-400 px-2 py-1 rounded border border-green-400/30">
-              {userName} (أنت)
-            </span>
-            <span className="text-xs bg-golden-600/20 text-golden-300 px-2 py-1 rounded border border-golden-400/30">
-              أحمد محمد
-            </span>
-            <span className="text-xs bg-golden-600/20 text-golden-300 px-2 py-1 rounded border border-golden-400/30">
-              فاطمة علي
-            </span>
-          </div>
         </div>
       </CardContent>
     </Card>

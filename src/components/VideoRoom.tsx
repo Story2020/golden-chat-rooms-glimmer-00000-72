@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'sonner';
 import ChatPanel from './ChatPanel';
+import { useVideoRoom } from '@/hooks/useVideoRoom';
 
 interface VideoRoomProps {
   roomCode: string;
@@ -23,20 +24,21 @@ interface VideoRoomProps {
 }
 
 const VideoRoom = ({ roomCode, userName, onLeaveRoom }: VideoRoomProps) => {
-  const [isVideoOn, setIsVideoOn] = useState(true);
-  const [isAudioOn, setIsAudioOn] = useState(true);
   const [showChat, setShowChat] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
-  const [participants] = useState([
-    { id: '1', name: userName, isVideoOn: true, isAudioOn: true },
-    { id: '2', name: 'أحمد محمد', isVideoOn: true, isAudioOn: false },
-    { id: '3', name: 'فاطمة علي', isVideoOn: false, isAudioOn: true },
-  ]);
-
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  const {
+    participants,
+    currentParticipant,
+    isVideoOn,
+    isAudioOn,
+    toggleVideo,
+    toggleAudio,
+    leaveRoom
+  } = useVideoRoom({ roomCode, userName });
+
   useEffect(() => {
-    // Simulate getting user media
     const startVideo = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -54,16 +56,6 @@ const VideoRoom = ({ roomCode, userName, onLeaveRoom }: VideoRoomProps) => {
 
     startVideo();
   }, []);
-
-  const toggleVideo = () => {
-    setIsVideoOn(!isVideoOn);
-    toast.info(isVideoOn ? 'تم إيقاف الكاميرا' : 'تم تشغيل الكاميرا');
-  };
-
-  const toggleAudio = () => {
-    setIsAudioOn(!isAudioOn);
-    toast.info(isAudioOn ? 'تم كتم الصوت' : 'تم تشغيل الصوت');
-  };
 
   const toggleScreenShare = () => {
     setIsScreenSharing(!isScreenSharing);
@@ -83,8 +75,8 @@ const VideoRoom = ({ roomCode, userName, onLeaveRoom }: VideoRoomProps) => {
     }
   };
 
-  const handleLeaveRoom = () => {
-    toast.info('تم مغادرة الغرفة');
+  const handleLeaveRoom = async () => {
+    await leaveRoom();
     onLeaveRoom();
   };
 
@@ -174,37 +166,25 @@ const VideoRoom = ({ roomCode, userName, onLeaveRoom }: VideoRoomProps) => {
           </Card>
 
           {/* Other Participants */}
-          {participants.slice(1).map((participant) => (
+          {participants.filter(p => p.id !== currentParticipant?.id).map((participant) => (
             <Card key={participant.id} className="glass-card border border-golden-400/30 relative overflow-hidden">
               <CardContent className="p-0 h-full relative">
-                {participant.isVideoOn ? (
-                  <div className="w-full h-full bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
-                    <div className="text-center">
-                      <div className="w-16 h-16 bg-golden-gradient rounded-full flex items-center justify-center mx-auto mb-2">
-                        <span className="text-black font-bold text-xl">
-                          {participant.name.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
+                <div className="w-full h-full bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-golden-gradient rounded-full flex items-center justify-center mx-auto mb-2">
+                      <span className="text-black font-bold text-xl">
+                        {participant.display_name.charAt(0).toUpperCase()}
+                      </span>
                     </div>
                   </div>
-                ) : (
-                  <div className="w-full h-full bg-black/50 flex items-center justify-center">
-                    <div className="text-center">
-                      <div className="w-16 h-16 bg-golden-gradient rounded-full flex items-center justify-center mx-auto mb-2">
-                        <span className="text-black font-bold text-xl">
-                          {participant.name.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                </div>
                 
                 {/* Participant Info */}
                 <div className="absolute bottom-2 left-2 flex items-center gap-1 bg-black/50 backdrop-blur-sm rounded px-2 py-1">
-                  <span className="text-golden-200 text-sm font-medium">{participant.name}</span>
+                  <span className="text-golden-200 text-sm font-medium">{participant.display_name}</span>
                   <div className="flex gap-1">
-                    {!participant.isAudioOn && <MicOff className="w-3 h-3 text-red-400" />}
-                    {!participant.isVideoOn && <VideoOff className="w-3 h-3 text-red-400" />}
+                    {participant.is_muted && <MicOff className="w-3 h-3 text-red-400" />}
+                    {participant.is_video_off && <VideoOff className="w-3 h-3 text-red-400" />}
                   </div>
                 </div>
               </CardContent>
@@ -213,9 +193,9 @@ const VideoRoom = ({ roomCode, userName, onLeaveRoom }: VideoRoomProps) => {
         </div>
 
         {/* Chat Panel */}
-        {showChat && (
+        {showChat && currentParticipant && (
           <div className="lg:col-span-1">
-            <ChatPanel roomCode={roomCode} userName={userName} />
+            <ChatPanel roomCode={roomCode} participantId={currentParticipant.id} userName={userName} />
           </div>
         )}
       </div>
