@@ -15,10 +15,14 @@ interface ChatPanelProps {
 
 const ChatPanel = ({ roomCode, participantId, userName }: ChatPanelProps) => {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  
   const { messages, newMessage, setNewMessage, sendMessage } = useChat({
     roomCode,
     participantId
   });
+
+  console.log('ChatPanel rendered with:', { roomCode, participantId, userName, messagesCount: messages.length });
 
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -26,8 +30,22 @@ const ChatPanel = ({ roomCode, participantId, userName }: ChatPanelProps) => {
     }
   }, [messages]);
 
-  const handleSendMessage = () => {
-    sendMessage();
+  const handleSendMessage = async () => {
+    if (!newMessage.trim()) {
+      console.log('Message is empty, not sending');
+      return;
+    }
+    
+    console.log('Sending message:', newMessage);
+    try {
+      await sendMessage();
+      // Focus back on input after sending
+      if (inputRef.current) {
+        inputRef.current.focus();
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -50,7 +68,7 @@ const ChatPanel = ({ roomCode, participantId, userName }: ChatPanelProps) => {
     <Card className="glass-card border border-golden-400/30 h-full flex flex-col">
       <CardHeader className="pb-3">
         <CardTitle className="text-lg font-bold text-golden-300 text-center">
-          الدردشة
+          الدردشة ({messages.length})
         </CardTitle>
       </CardHeader>
       
@@ -58,37 +76,44 @@ const ChatPanel = ({ roomCode, participantId, userName }: ChatPanelProps) => {
         {/* Messages Area */}
         <ScrollArea className="flex-1 mb-4" ref={scrollAreaRef}>
           <div className="space-y-3 pr-4">
-            {messages.map((message) => {
-              const isOwn = message.participant_id === participantId;
-              return (
-                <div
-                  key={message.id}
-                  className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
-                >
+            {messages.length === 0 ? (
+              <div className="text-center text-golden-300/50 py-8">
+                <p>لا توجد رسائل بعد</p>
+                <p className="text-sm mt-1">ابدأ المحادثة!</p>
+              </div>
+            ) : (
+              messages.map((message) => {
+                const isOwn = message.participant_id === participantId;
+                return (
                   <div
-                    className={`max-w-[80%] rounded-lg p-3 ${
-                      isOwn
-                        ? 'bg-golden-gradient text-black'
-                        : 'bg-black/30 text-golden-100 border border-golden-400/20'
-                    }`}
+                    key={message.id}
+                    className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
                   >
-                    {!isOwn && (
-                      <p className="text-xs font-semibold text-golden-300 mb-1">
-                        {message.participants?.display_name || 'مجهول'}
-                      </p>
-                    )}
-                    <p className="text-sm leading-relaxed">{message.message}</p>
-                    <p
-                      className={`text-xs mt-1 ${
-                        isOwn ? 'text-black/70' : 'text-golden-200/70'
+                    <div
+                      className={`max-w-[80%] rounded-lg p-3 ${
+                        isOwn
+                          ? 'bg-golden-gradient text-black'
+                          : 'bg-black/30 text-golden-100 border border-golden-400/20'
                       }`}
                     >
-                      {formatTime(message.created_at)}
-                    </p>
+                      {!isOwn && (
+                        <p className="text-xs font-semibold text-golden-300 mb-1">
+                          {message.participants?.display_name || 'مجهول'}
+                        </p>
+                      )}
+                      <p className="text-sm leading-relaxed">{message.message}</p>
+                      <p
+                        className={`text-xs mt-1 ${
+                          isOwn ? 'text-black/70' : 'text-golden-200/70'
+                        }`}
+                      >
+                        {formatTime(message.created_at)}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </ScrollArea>
 
@@ -96,6 +121,7 @@ const ChatPanel = ({ roomCode, participantId, userName }: ChatPanelProps) => {
         <div className="flex gap-2">
           <div className="flex-1 relative">
             <Input
+              ref={inputRef}
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyPress={handleKeyPress}
@@ -116,9 +142,10 @@ const ChatPanel = ({ roomCode, participantId, userName }: ChatPanelProps) => {
           <Button
             onClick={handleSendMessage}
             disabled={!newMessage.trim()}
-            className="golden-button px-3 py-2 h-auto"
+            variant="ghost"
+            className="golden-button px-3 py-2 h-auto bg-golden-600/20 hover:bg-golden-600/30 text-golden-300 border border-golden-400/50"
           >
-            <Send className="w-4 h-4 icon-3d" />
+            <Send className="w-4 h-4" />
           </Button>
         </div>
       </CardContent>

@@ -1,5 +1,4 @@
-
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import ParticipantCard from './ParticipantCard';
 
@@ -22,47 +21,67 @@ interface VideoGridProps {
 
 const VideoGrid = ({ participants, currentParticipant, userName, isVideoOn, showChat }: VideoGridProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const [hasPermissions, setHasPermissions] = useState(false);
 
   console.log('VideoGrid rendering with participants:', participants);
   console.log('Current participant:', currentParticipant);
 
+  // Request permissions on component mount
   useEffect(() => {
-    const startVideo = async () => {
-      if (!isVideoOn) return;
-      
+    const requestPermissions = async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
+        console.log('Requesting camera and microphone permissions...');
+        const mediaStream = await navigator.mediaDevices.getUserMedia({ 
           video: true, 
           audio: true 
         });
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
+        
+        setStream(mediaStream);
+        setHasPermissions(true);
+        
+        if (isVideoOn && videoRef.current) {
+          videoRef.current.srcObject = mediaStream;
         }
+        
+        console.log('Permissions granted and stream obtained');
+        toast.success('تم الحصول على صلاحيات الكاميرا والميكروفون');
       } catch (error) {
-        console.log('Camera access denied or not available');
-        toast.error('لا يمكن الوصول إلى الكاميرا');
+        console.error('Permission denied or camera not available:', error);
+        setHasPermissions(false);
+        toast.error('لا يمكن الوصول إلى الكاميرا أو الميكروفون');
       }
     };
 
-    startVideo();
-
-    // Cleanup function to stop video stream when component unmounts or video is turned off
+    requestPermissions();
+    
+    // Cleanup function
     return () => {
-      if (videoRef.current && videoRef.current.srcObject) {
-        const stream = videoRef.current.srcObject as MediaStream;
+      if (stream) {
         stream.getTracks().forEach(track => track.stop());
       }
     };
-  }, [isVideoOn]);
+  }, []);
 
-  // Stop video stream when video is turned off
+  // Handle video on/off
   useEffect(() => {
-    if (!isVideoOn && videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach(track => track.stop());
-      videoRef.current.srcObject = null;
+    if (!stream || !videoRef.current) return;
+
+    if (isVideoOn && hasPermissions) {
+      videoRef.current.srcObject = stream;
+      // Enable video track
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.enabled = true;
+      }
+    } else {
+      // Disable video track but keep stream
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.enabled = false;
+      }
     }
-  }, [isVideoOn]);
+  }, [isVideoOn, stream, hasPermissions]);
 
   // Calculate grid columns based on number of participants and chat visibility
   const totalParticipants = participants.length;
@@ -83,6 +102,7 @@ const VideoGrid = ({ participants, currentParticipant, userName, isVideoOn, show
             isCurrentUser={isCurrentUser}
             videoRef={isCurrentUser ? videoRef : undefined}
             isVideoOn={isCurrentUser ? isVideoOn : !participant.is_video_off}
+            hasPermissions={isCurrentUser ? hasPermissions : true}
           />
         );
       })}

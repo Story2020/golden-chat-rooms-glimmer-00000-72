@@ -16,12 +16,19 @@ interface ParticipantCardProps {
   isCurrentUser?: boolean;
   videoRef?: React.RefObject<HTMLVideoElement>;
   isVideoOn?: boolean;
+  hasPermissions?: boolean;
 }
 
-const ParticipantCard = ({ participant, isCurrentUser = false, videoRef, isVideoOn = true }: ParticipantCardProps) => {
+const ParticipantCard = ({ 
+  participant, 
+  isCurrentUser = false, 
+  videoRef, 
+  isVideoOn = true,
+  hasPermissions = true
+}: ParticipantCardProps) => {
   console.log('Rendering participant card:', participant, 'isCurrentUser:', isCurrentUser);
   
-  const shouldShowVideo = isCurrentUser ? isVideoOn : !participant.is_video_off;
+  const shouldShowVideo = isCurrentUser ? (isVideoOn && hasPermissions) : !participant.is_video_off;
   const isMuted = isCurrentUser ? !isVideoOn : participant.is_muted;
 
   return (
@@ -31,6 +38,7 @@ const ParticipantCard = ({ participant, isCurrentUser = false, videoRef, isVideo
           <video
             ref={videoRef}
             autoPlay
+            playsInline
             muted
             className="w-full h-full object-cover rounded-lg"
           />
@@ -54,7 +62,9 @@ const ParticipantCard = ({ participant, isCurrentUser = false, videoRef, isVideo
                 </span>
               </div>
               <p className="text-golden-200 font-semibold">{participant.display_name}</p>
-              <p className="text-golden-300/70 text-sm mt-1">الكاميرا مغلقة</p>
+              <p className="text-golden-300/70 text-sm mt-1">
+                {isCurrentUser && !hasPermissions ? 'لا توجد صلاحيات للكاميرا' : 'الكاميرا مغلقة'}
+              </p>
             </div>
           </div>
         )}

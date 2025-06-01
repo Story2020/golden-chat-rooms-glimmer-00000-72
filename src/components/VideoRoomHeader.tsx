@@ -13,15 +13,37 @@ interface VideoRoomHeaderProps {
 const VideoRoomHeader = ({ roomCode, participantsCount, showChat, onToggleChat }: VideoRoomHeaderProps) => {
   const shareRoomCode = async () => {
     try {
-      await navigator.share({
-        title: 'انضم إلى غرفة الفيديو شات',
-        text: `انضم إلي في غرفة الفيديو شات باستخدام الكود: ${roomCode}`,
-        url: window.location.href
-      });
+      console.log('Attempting to share room code:', roomCode);
+      
+      // Try native share API first
+      if (navigator.share) {
+        await navigator.share({
+          title: 'انضم إلى غرفة الفيديو شات',
+          text: `انضم إلي في غرفة الفيديو شات باستخدام الكود: ${roomCode}`,
+          url: window.location.href
+        });
+        toast.success('تم مشاركة الغرفة بنجاح');
+      } else {
+        // Fallback to clipboard
+        await navigator.clipboard.writeText(`كود الغرفة: ${roomCode}\nالرابط: ${window.location.href}`);
+        toast.success('تم نسخ كود الغرفة والرابط');
+      }
     } catch (error) {
-      navigator.clipboard.writeText(roomCode);
-      toast.success('تم نسخ كود الغرفة');
+      console.error('Error sharing room code:', error);
+      // Final fallback
+      try {
+        await navigator.clipboard.writeText(roomCode);
+        toast.success('تم نسخ كود الغرفة');
+      } catch (clipboardError) {
+        console.error('Clipboard error:', clipboardError);
+        toast.error('خطأ في مشاركة الغرفة');
+      }
     }
+  };
+
+  const handleToggleChat = () => {
+    console.log('Chat toggle clicked, current state:', showChat);
+    onToggleChat();
   };
 
   return (
@@ -39,24 +61,26 @@ const VideoRoomHeader = ({ roomCode, participantsCount, showChat, onToggleChat }
               onClick={shareRoomCode}
               variant="ghost"
               size="sm"
-              className="text-golden-400 hover:text-golden-300 hover:bg-golden-400/10"
+              className="text-golden-400 hover:text-golden-300 hover:bg-golden-400/10 p-2"
             >
-              <Share2 className="w-4 h-4 icon-3d" />
+              <Share2 className="w-4 h-4" />
             </Button>
           </div>
           
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1 text-golden-200">
-              <Users className="w-4 h-4 icon-3d" />
+              <Users className="w-4 h-4" />
               <span>{participantsCount}</span>
             </div>
             <Button
-              onClick={onToggleChat}
+              onClick={handleToggleChat}
               variant="ghost"
               size="sm"
-              className="text-golden-400 hover:text-golden-300 hover:bg-golden-400/10"
+              className={`text-golden-400 hover:text-golden-300 hover:bg-golden-400/10 p-2 ${
+                showChat ? 'bg-golden-400/20' : ''
+              }`}
             >
-              <MessageCircle className="w-4 h-4 icon-3d" />
+              <MessageCircle className="w-4 h-4" />
             </Button>
           </div>
         </div>
