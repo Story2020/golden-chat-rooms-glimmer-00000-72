@@ -1,12 +1,33 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+
+import { useState } from 'react';
+import WelcomeScreen from '../components/WelcomeScreen';
+import VideoRoom from '../components/VideoRoom';
 
 const Index = () => {
+  const [currentRoom, setCurrentRoom] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string>('');
+
+  const handleJoinRoom = (roomCode: string, name: string) => {
+    setCurrentRoom(roomCode);
+    setUserName(name);
+  };
+
+  const handleLeaveRoom = () => {
+    setCurrentRoom(null);
+    setUserName('');
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-gray-600">Start building your amazing project here!</p>
-      </div>
+    <div className="min-h-screen bg-black-glossy overflow-hidden">
+      {!currentRoom ? (
+        <WelcomeScreen onJoinRoom={handleJoinRoom} />
+      ) : (
+        <VideoRoom 
+          roomCode={currentRoom} 
+          userName={userName} 
+          onLeaveRoom={handleLeaveRoom} 
+        />
+      )}
     </div>
   );
 };
