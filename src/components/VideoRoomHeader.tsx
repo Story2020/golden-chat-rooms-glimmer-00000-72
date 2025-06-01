@@ -15,35 +15,59 @@ const VideoRoomHeader = ({ roomCode, participantsCount, showChat, onToggleChat }
     try {
       console.log('Attempting to share room code:', roomCode);
       
-      // Try native share API first
-      if (navigator.share) {
+      const shareText = `انضم إلي في غرفة الفيديو شات!\nكود الغرفة: ${roomCode}\nالرابط: ${window.location.href}`;
+      
+      // Try native share API first (works on mobile and some desktop browsers)
+      if (navigator.share && navigator.canShare && navigator.canShare({
+        title: 'انضم إلى غرفة الفيديو شات',
+        text: shareText
+      })) {
         await navigator.share({
           title: 'انضم إلى غرفة الفيديو شات',
-          text: `انضم إلي في غرفة الفيديو شات باستخدام الكود: ${roomCode}`,
+          text: shareText,
           url: window.location.href
         });
         toast.success('تم مشاركة الغرفة بنجاح');
-      } else {
-        // Fallback to clipboard
-        await navigator.clipboard.writeText(`كود الغرفة: ${roomCode}\nالرابط: ${window.location.href}`);
-        toast.success('تم نسخ كود الغرفة والرابط');
+        return;
       }
+      
+      // Fallback to clipboard
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(shareText);
+        toast.success('تم نسخ تفاصيل الغرفة إلى الحافظة');
+        return;
+      }
+      
+      // Final fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = shareText;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      textArea.style.top = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      
+      try {
+        document.execCommand('copy');
+        toast.success('تم نسخ تفاصيل الغرفة');
+      } catch (err) {
+        console.error('Fallback copy failed:', err);
+        toast.error('خطأ في نسخ تفاصيل الغرفة');
+      } finally {
+        document.body.removeChild(textArea);
+      }
+      
     } catch (error) {
       console.error('Error sharing room code:', error);
-      // Final fallback
-      try {
-        await navigator.clipboard.writeText(roomCode);
-        toast.success('تم نسخ كود الغرفة');
-      } catch (clipboardError) {
-        console.error('Clipboard error:', clipboardError);
-        toast.error('خطأ في مشاركة الغرفة');
-      }
+      toast.error('خطأ في مشاركة الغرفة');
     }
   };
 
   const handleToggleChat = () => {
     console.log('Chat toggle clicked, current state:', showChat);
     onToggleChat();
+    toast.info(showChat ? 'تم إغلاق الدردشة' : 'تم فتح الدردشة');
   };
 
   return (
@@ -61,7 +85,8 @@ const VideoRoomHeader = ({ roomCode, participantsCount, showChat, onToggleChat }
               onClick={shareRoomCode}
               variant="ghost"
               size="sm"
-              className="text-golden-400 hover:text-golden-300 hover:bg-golden-400/10 p-2"
+              className="text-golden-400 hover:text-golden-300 hover:bg-golden-400/10 p-2 transition-all duration-200"
+              title="مشاركة كود الغرفة"
             >
               <Share2 className="w-4 h-4" />
             </Button>
@@ -76,9 +101,10 @@ const VideoRoomHeader = ({ roomCode, participantsCount, showChat, onToggleChat }
               onClick={handleToggleChat}
               variant="ghost"
               size="sm"
-              className={`text-golden-400 hover:text-golden-300 hover:bg-golden-400/10 p-2 ${
-                showChat ? 'bg-golden-400/20' : ''
+              className={`text-golden-400 hover:text-golden-300 hover:bg-golden-400/10 p-2 transition-all duration-200 ${
+                showChat ? 'bg-golden-400/20 text-golden-300' : ''
               }`}
+              title={showChat ? 'إغلاق الدردشة' : 'فتح الدردشة'}
             >
               <MessageCircle className="w-4 h-4" />
             </Button>

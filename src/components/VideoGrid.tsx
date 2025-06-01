@@ -1,3 +1,4 @@
+
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import ParticipantCard from './ParticipantCard';
@@ -27,74 +28,110 @@ const VideoGrid = ({ participants, currentParticipant, userName, isVideoOn, show
   console.log('VideoGrid rendering with participants:', participants);
   console.log('Current participant:', currentParticipant);
 
-  // Request permissions on component mount
+  // Auto-request permissions on component mount without user interaction
   useEffect(() => {
     const requestPermissions = async () => {
       try {
-        console.log('Requesting camera and microphone permissions...');
+        console.log('Auto-requesting camera and microphone permissions...');
+        
+        // Request both video and audio permissions automatically
         const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-          video: true, 
-          audio: true 
+          video: { 
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: 'user'
+          }, 
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
         });
         
+        console.log('Media stream obtained:', mediaStream);
         setStream(mediaStream);
         setHasPermissions(true);
         
+        // Immediately set up video if enabled
         if (isVideoOn && videoRef.current) {
           videoRef.current.srcObject = mediaStream;
+          videoRef.current.play().catch(e => console.log('Auto-play prevented:', e));
         }
         
-        console.log('Permissions granted and stream obtained');
-        toast.success('تم الحصول على صلاحيات الكاميرا والميكروفون');
+        console.log('Permissions granted and stream set up successfully');
+        toast.success('تم الحصول على صلاحيات الكاميرا والميكروفون تلقائياً');
       } catch (error) {
-        console.error('Permission denied or camera not available:', error);
+        console.error('Error getting media permissions:', error);
         setHasPermissions(false);
-        toast.error('لا يمكن الوصول إلى الكاميرا أو الميكروفون');
+        
+        // Try to get at least audio if video fails
+        try {
+          const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          setStream(audioStream);
+          toast.warning('تم الحصول على صلاحية الميكروفون فقط');
+        } catch (audioError) {
+          console.error('Failed to get audio as well:', audioError);
+          toast.error('لا يمكن الوصول إلى الكاميرا أو الميكروفون - يرجى السماح بالوصول يدوياً');
+        }
       }
     };
 
+    // Auto-request permissions immediately
     requestPermissions();
     
     // Cleanup function
     return () => {
       if (stream) {
-        stream.getTracks().forEach(track => track.stop());
+        console.log('Cleaning up media stream');
+        stream.getTracks().forEach(track => {
+          track.stop();
+          console.log('Stopped track:', track.kind);
+        });
       }
     };
-  }, []);
+  }, []); // Empty dependency array to run only once
 
-  // Handle video on/off
+  // Handle video on/off state changes
   useEffect(() => {
     if (!stream || !videoRef.current) return;
 
+    console.log('Video state changed:', isVideoOn, 'hasPermissions:', hasPermissions);
+
     if (isVideoOn && hasPermissions) {
       videoRef.current.srcObject = stream;
+      videoRef.current.play().catch(e => console.log('Video play error:', e));
+      
       // Enable video track
       const videoTrack = stream.getVideoTracks()[0];
       if (videoTrack) {
         videoTrack.enabled = true;
+        console.log('Video track enabled');
       }
     } else {
       // Disable video track but keep stream
       const videoTrack = stream.getVideoTracks()[0];
       if (videoTrack) {
         videoTrack.enabled = false;
+        console.log('Video track disabled');
       }
     }
   }, [isVideoOn, stream, hasPermissions]);
 
-  // Calculate grid columns based on number of participants and chat visibility
+  // Calculate grid layout based on participants and chat visibility
   const totalParticipants = participants.length;
-  const gridCols = totalParticipants === 1 ? 'grid-cols-1' : 
-                   totalParticipants === 2 ? 'grid-cols-1 md:grid-cols-2' :
-                   totalParticipants <= 4 ? 'grid-cols-1 md:grid-cols-2' :
-                   'grid-cols-1 md:grid-cols-2 lg:grid-cols-3';
+  const getGridCols = () => {
+    if (totalParticipants === 1) return 'grid-cols-1';
+    if (totalParticipants === 2) return 'grid-cols-1 md:grid-cols-2';
+    if (totalParticipants <= 4) return 'grid-cols-1 md:grid-cols-2';
+    return 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3';
+  };
 
   return (
-    <div className={`${showChat ? 'lg:col-span-3' : 'lg:col-span-4'} grid ${gridCols} gap-4 h-full`}>
-      {/* All Participants */}
+    <div className={`${showChat ? 'lg:col-span-3' : 'lg:col-span-4'} grid ${getGridCols()} gap-4 h-full`}>
       {participants.map((participant) => {
         const isCurrentUser = participant.id === currentParticipant?.id;
+        console.log('Rendering participant:', participant.display_name, 'isCurrentUser:', isCurrentUser);
+        
         return (
           <ParticipantCard
             key={participant.id}
