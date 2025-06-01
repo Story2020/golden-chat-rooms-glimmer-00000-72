@@ -66,17 +66,20 @@ const VideoControls = ({
   const handleToggleAudio = () => {
     console.log('Audio button clicked, current state:', isAudioOn);
     onToggleAudio();
+    toast.success(isAudioOn ? 'تم كتم الصوت' : 'تم تشغيل الصوت');
   };
 
   const handleToggleVideo = () => {
     console.log('Video button clicked, current state:', isVideoOn);
     onToggleVideo();
+    toast.success(isVideoOn ? 'تم إيقاف الكاميرا' : 'تم تشغيل الكاميرا');
   };
 
   const handleLeaveRoom = () => {
     console.log('Leave room clicked');
     if (confirm('هل أنت متأكد من مغادرة الغرفة؟')) {
       onLeaveRoom();
+      toast.success('تم مغادرة الغرفة');
     }
   };
 
