@@ -128,10 +128,13 @@ export const useVideoRoom = ({ roomCode, userName }: UseVideoRoomProps) => {
         cleanupRef.current();
       }
     };
-  }, [roomCode, userName, isAudioOn, isVideoOn]);
+  }, [roomCode, userName]);
 
   const toggleVideo = async () => {
-    if (!currentParticipant) return;
+    if (!currentParticipant) {
+      console.log('No current participant for video toggle');
+      return;
+    }
 
     const newVideoState = !isVideoOn;
     console.log('Toggling video to:', newVideoState);
@@ -142,11 +145,15 @@ export const useVideoRoom = ({ roomCode, userName }: UseVideoRoomProps) => {
         .update({ is_video_off: !newVideoState })
         .eq('id', currentParticipant.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database error toggling video:', error);
+        throw error;
+      }
 
       setIsVideoOn(newVideoState);
       setCurrentParticipant(prev => prev ? { ...prev, is_video_off: !newVideoState } : null);
 
+      console.log('Video state updated successfully:', newVideoState);
       toast.success(newVideoState ? 'تم تشغيل الكاميرا' : 'تم إيقاف الكاميرا');
     } catch (error) {
       console.error('Error toggling video:', error);
@@ -155,7 +162,10 @@ export const useVideoRoom = ({ roomCode, userName }: UseVideoRoomProps) => {
   };
 
   const toggleAudio = async () => {
-    if (!currentParticipant) return;
+    if (!currentParticipant) {
+      console.log('No current participant for audio toggle');
+      return;
+    }
 
     const newAudioState = !isAudioOn;
     console.log('Toggling audio to:', newAudioState);
@@ -166,11 +176,15 @@ export const useVideoRoom = ({ roomCode, userName }: UseVideoRoomProps) => {
         .update({ is_muted: !newAudioState })
         .eq('id', currentParticipant.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database error toggling audio:', error);
+        throw error;
+      }
 
       setIsAudioOn(newAudioState);
       setCurrentParticipant(prev => prev ? { ...prev, is_muted: !newAudioState } : null);
 
+      console.log('Audio state updated successfully:', newAudioState);
       toast.success(newAudioState ? 'تم تشغيل الصوت' : 'تم كتم الصوت');
     } catch (error) {
       console.error('Error toggling audio:', error);
@@ -182,11 +196,13 @@ export const useVideoRoom = ({ roomCode, userName }: UseVideoRoomProps) => {
     if (!currentParticipant) return;
 
     try {
+      console.log('Leaving room for participant:', currentParticipant.id);
       await supabase
         .from('participants')
         .update({ is_online: false })
         .eq('id', currentParticipant.id);
 
+      console.log('Successfully left room');
       toast.success('تم مغادرة الغرفة');
     } catch (error) {
       console.error('Error leaving room:', error);

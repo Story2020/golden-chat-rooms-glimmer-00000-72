@@ -13,27 +13,30 @@ interface VideoRoomHeaderProps {
 const VideoRoomHeader = ({ roomCode, participantsCount, showChat, onToggleChat }: VideoRoomHeaderProps) => {
   const shareRoomCode = async () => {
     try {
-      console.log('Attempting to share room code:', roomCode);
+      console.log('Share button clicked for room code:', roomCode);
       
       const shareText = `انضم إلي في غرفة الفيديو شات!\nكود الغرفة: ${roomCode}\nالرابط: ${window.location.href}`;
       
       // Try native share API first (works on mobile and some desktop browsers)
-      if (navigator.share && navigator.canShare && navigator.canShare({
-        title: 'انضم إلى غرفة الفيديو شات',
-        text: shareText
-      })) {
-        await navigator.share({
-          title: 'انضم إلى غرفة الفيديو شات',
-          text: shareText,
-          url: window.location.href
-        });
-        toast.success('تم مشاركة الغرفة بنجاح');
-        return;
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: 'انضم إلى غرفة الفيديو شات',
+            text: shareText,
+            url: window.location.href
+          });
+          console.log('Native share successful');
+          toast.success('تم مشاركة الغرفة بنجاح');
+          return;
+        } catch (shareError) {
+          console.log('Native share failed, falling back to clipboard:', shareError);
+        }
       }
       
       // Fallback to clipboard
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(shareText);
+        console.log('Clipboard copy successful');
         toast.success('تم نسخ تفاصيل الغرفة إلى الحافظة');
         return;
       }
@@ -49,10 +52,15 @@ const VideoRoomHeader = ({ roomCode, participantsCount, showChat, onToggleChat }
       textArea.select();
       
       try {
-        document.execCommand('copy');
-        toast.success('تم نسخ تفاصيل الغرفة');
+        const successful = document.execCommand('copy');
+        if (successful) {
+          console.log('Fallback copy successful');
+          toast.success('تم نسخ تفاصيل الغرفة');
+        } else {
+          throw new Error('execCommand failed');
+        }
       } catch (err) {
-        console.error('Fallback copy failed:', err);
+        console.error('All copy methods failed:', err);
         toast.error('خطأ في نسخ تفاصيل الغرفة');
       } finally {
         document.body.removeChild(textArea);
@@ -85,7 +93,7 @@ const VideoRoomHeader = ({ roomCode, participantsCount, showChat, onToggleChat }
               onClick={shareRoomCode}
               variant="ghost"
               size="sm"
-              className="text-golden-400 hover:text-golden-300 hover:bg-golden-400/10 p-2 transition-all duration-200"
+              className="text-golden-400 hover:text-golden-300 hover:bg-golden-400/10 p-2 transition-all duration-200 hover:scale-105"
               title="مشاركة كود الغرفة"
             >
               <Share2 className="w-4 h-4" />
@@ -101,7 +109,7 @@ const VideoRoomHeader = ({ roomCode, participantsCount, showChat, onToggleChat }
               onClick={handleToggleChat}
               variant="ghost"
               size="sm"
-              className={`text-golden-400 hover:text-golden-300 hover:bg-golden-400/10 p-2 transition-all duration-200 ${
+              className={`text-golden-400 hover:text-golden-300 hover:bg-golden-400/10 p-2 transition-all duration-200 hover:scale-105 ${
                 showChat ? 'bg-golden-400/20 text-golden-300' : ''
               }`}
               title={showChat ? 'إغلاق الدردشة' : 'فتح الدردشة'}

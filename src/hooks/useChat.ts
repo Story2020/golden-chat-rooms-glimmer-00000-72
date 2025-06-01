@@ -25,8 +25,8 @@ export const useChat = ({ roomCode, participantId }: UseChatProps) => {
   const cleanupRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    if (!participantId) {
-      console.log('No participant ID, skipping chat setup');
+    if (!participantId || !roomCode) {
+      console.log('No participant ID or room code, skipping chat setup');
       return;
     }
 
@@ -100,7 +100,10 @@ export const useChat = ({ roomCode, participantId }: UseChatProps) => {
               setMessages(prev => {
                 // Avoid duplicates
                 const exists = prev.some(msg => msg.id === newMsg.id);
-                if (exists) return prev;
+                if (exists) {
+                  console.log('Message already exists, skipping');
+                  return prev;
+                }
                 return [...prev, newMsg];
               });
             }
@@ -144,10 +147,10 @@ export const useChat = ({ roomCode, participantId }: UseChatProps) => {
     }
 
     const messageText = newMessage.trim();
+    console.log('Attempting to send message:', messageText);
     setNewMessage(''); // Clear input immediately for better UX
 
     try {
-      console.log('Sending message:', messageText);
       setIsLoading(true);
       
       const { data: room } = await supabase
@@ -179,7 +182,6 @@ export const useChat = ({ roomCode, participantId }: UseChatProps) => {
       }
 
       console.log('Message sent successfully');
-      toast.success('تم إرسال الرسالة');
     } catch (error) {
       console.error('Error sending message:', error);
       // Message is already restored above in case of error

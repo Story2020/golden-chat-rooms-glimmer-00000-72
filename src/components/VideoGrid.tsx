@@ -25,11 +25,13 @@ const VideoGrid = ({ participants, currentParticipant, userName, isVideoOn, show
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [hasPermissions, setHasPermissions] = useState(false);
 
-  console.log('VideoGrid rendering with participants:', participants);
-  console.log('Current participant:', currentParticipant);
+  console.log('VideoGrid rendering with participants:', participants.length);
+  console.log('Current participant:', currentParticipant?.display_name);
 
-  // Auto-request permissions on component mount without user interaction
+  // Auto-request permissions on component mount
   useEffect(() => {
+    let mounted = true;
+
     const requestPermissions = async () => {
       try {
         console.log('Auto-requesting camera and microphone permissions...');
@@ -48,7 +50,12 @@ const VideoGrid = ({ participants, currentParticipant, userName, isVideoOn, show
           }
         });
         
-        console.log('Media stream obtained:', mediaStream);
+        if (!mounted) {
+          mediaStream.getTracks().forEach(track => track.stop());
+          return;
+        }
+
+        console.log('Media stream obtained successfully');
         setStream(mediaStream);
         setHasPermissions(true);
         
@@ -59,19 +66,28 @@ const VideoGrid = ({ participants, currentParticipant, userName, isVideoOn, show
         }
         
         console.log('Permissions granted and stream set up successfully');
-        toast.success('تم الحصول على صلاحيات الكاميرا والميكروفون تلقائياً');
+        toast.success('تم الحصول على صلاحيات الكاميرا والميكروفون');
       } catch (error) {
         console.error('Error getting media permissions:', error);
+        
+        if (!mounted) return;
+        
         setHasPermissions(false);
         
         // Try to get at least audio if video fails
         try {
           const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          setStream(audioStream);
-          toast.warning('تم الحصول على صلاحية الميكروفون فقط');
+          if (mounted) {
+            setStream(audioStream);
+            toast.warning('تم الحصول على صلاحية الميكروفون فقط');
+          } else {
+            audioStream.getTracks().forEach(track => track.stop());
+          }
         } catch (audioError) {
           console.error('Failed to get audio as well:', audioError);
-          toast.error('لا يمكن الوصول إلى الكاميرا أو الميكروفون - يرجى السماح بالوصول يدوياً');
+          if (mounted) {
+            toast.error('لا يمكن الوصول إلى الكاميرا أو الميكروفون');
+          }
         }
       }
     };
@@ -81,6 +97,7 @@ const VideoGrid = ({ participants, currentParticipant, userName, isVideoOn, show
     
     // Cleanup function
     return () => {
+      mounted = false;
       if (stream) {
         console.log('Cleaning up media stream');
         stream.getTracks().forEach(track => {

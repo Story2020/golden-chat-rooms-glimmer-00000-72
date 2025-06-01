@@ -64,12 +64,12 @@ const VideoControls = ({
   };
 
   const handleToggleAudio = () => {
-    console.log('Audio toggle clicked, current state:', isAudioOn);
+    console.log('Audio button clicked, current state:', isAudioOn);
     onToggleAudio();
   };
 
   const handleToggleVideo = () => {
-    console.log('Video toggle clicked, current state:', isVideoOn);
+    console.log('Video button clicked, current state:', isVideoOn);
     onToggleVideo();
   };
 
@@ -94,7 +94,7 @@ const VideoControls = ({
             onClick={handleToggleAudio}
             variant="ghost"
             size="icon"
-            className={`w-12 h-12 rounded-full transition-all duration-300 ${
+            className={`w-12 h-12 rounded-full transition-all duration-300 hover:scale-105 ${
               isAudioOn 
                 ? 'bg-golden-600/20 hover:bg-golden-600/30 text-golden-300 border-2 border-golden-400/50' 
                 : 'bg-red-600/20 hover:bg-red-600/30 text-red-400 border-2 border-red-400/50'
@@ -113,7 +113,7 @@ const VideoControls = ({
             onClick={handleToggleVideo}
             variant="ghost"
             size="icon"
-            className={`w-12 h-12 rounded-full transition-all duration-300 ${
+            className={`w-12 h-12 rounded-full transition-all duration-300 hover:scale-105 ${
               isVideoOn 
                 ? 'bg-golden-600/20 hover:bg-golden-600/30 text-golden-300 border-2 border-golden-400/50' 
                 : 'bg-red-600/20 hover:bg-red-600/30 text-red-400 border-2 border-red-400/50'
@@ -132,7 +132,7 @@ const VideoControls = ({
             onClick={handleToggleScreenShare}
             variant="ghost"
             size="icon"
-            className={`w-12 h-12 rounded-full transition-all duration-300 ${
+            className={`w-12 h-12 rounded-full transition-all duration-300 hover:scale-105 ${
               isScreenSharing 
                 ? 'bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border-2 border-blue-400/50' 
                 : 'bg-golden-600/20 hover:bg-golden-600/30 text-golden-300 border-2 border-golden-400/50'
@@ -147,7 +147,7 @@ const VideoControls = ({
             onClick={handleSettings}
             variant="ghost"
             size="icon"
-            className="w-12 h-12 rounded-full bg-golden-600/20 hover:bg-golden-600/30 text-golden-300 border-2 border-golden-400/50 transition-all duration-300"
+            className="w-12 h-12 rounded-full bg-golden-600/20 hover:bg-golden-600/30 text-golden-300 border-2 border-golden-400/50 transition-all duration-300 hover:scale-105"
             title="الإعدادات"
           >
             <Settings className="w-5 h-5" />
@@ -160,7 +160,7 @@ const VideoControls = ({
             onClick={handleLeaveRoom}
             variant="ghost"
             size="icon"
-            className="w-12 h-12 rounded-full bg-red-600/20 hover:bg-red-600/30 text-red-400 border-2 border-red-400/50 transition-all duration-300"
+            className="w-12 h-12 rounded-full bg-red-600/20 hover:bg-red-600/30 text-red-400 border-2 border-red-400/50 transition-all duration-300 hover:scale-105"
             title="مغادرة الغرفة"
           >
             <PhoneOff className="w-5 h-5" />
