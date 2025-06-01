@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 interface WelcomeScreenProps {
   onJoinRoom: (roomCode: string, userName: string) => void;
@@ -14,15 +15,35 @@ const WelcomeScreen = ({ onJoinRoom }: WelcomeScreenProps) => {
   const [roomCode, setRoomCode] = useState('');
   const [userName, setUserName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const generateRoomCode = () => {
-    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-    setRoomCode(code);
-    setIsCreating(true);
-    toast.success(`تم إنشاء الغرفة بكود: ${code}`);
+  const generateRoomCode = async () => {
+    setIsLoading(true);
+    try {
+      const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+      
+      // Create room in database
+      const { error } = await supabase
+        .from('rooms')
+        .insert({
+          room_code: code,
+          is_active: true
+        });
+
+      if (error) throw error;
+
+      setRoomCode(code);
+      setIsCreating(true);
+      toast.success(`تم إنشاء الغرفة بكود: ${code}`);
+    } catch (error) {
+      console.error('Error creating room:', error);
+      toast.error('خطأ في إنشاء الغرفة');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleJoin = () => {
+  const handleJoin = async () => {
     if (!roomCode.trim()) {
       toast.error('يرجى إدخال كود الغرفة');
       return;
@@ -31,7 +52,33 @@ const WelcomeScreen = ({ onJoinRoom }: WelcomeScreenProps) => {
       toast.error('يرجى إدخال اسمك');
       return;
     }
-    onJoinRoom(roomCode.toUpperCase(), userName);
+
+    setIsLoading(true);
+    try {
+      // Check if room exists
+      const { data: room, error } = await supabase
+        .from('rooms')
+        .select('id, is_active')
+        .eq('room_code', roomCode.toUpperCase())
+        .single();
+
+      if (error || !room) {
+        toast.error('الغرفة غير موجودة');
+        return;
+      }
+
+      if (!room.is_active) {
+        toast.error('الغرفة غير نشطة');
+        return;
+      }
+
+      onJoinRoom(roomCode.toUpperCase(), userName);
+    } catch (error) {
+      console.error('Error checking room:', error);
+      toast.error('خطأ في التحقق من الغرفة');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -76,6 +123,7 @@ const WelcomeScreen = ({ onJoinRoom }: WelcomeScreenProps) => {
                   onChange={(e) => setUserName(e.target.value)}
                   className="bg-black/50 border-golden-400/50 text-golden-100 placeholder-golden-300/50 
                            focus:border-golden-400 focus:ring-golden-400/30 h-12"
+                  disabled={isLoading}
                 />
               </div>
 
@@ -92,6 +140,7 @@ const WelcomeScreen = ({ onJoinRoom }: WelcomeScreenProps) => {
                   className="bg-black/50 border-golden-400/50 text-golden-100 placeholder-golden-300/50 
                            focus:border-golden-400 focus:ring-golden-400/30 h-12 tracking-widest"
                   maxLength={6}
+                  disabled={isLoading}
                 />
               </div>
             </div>
@@ -100,10 +149,10 @@ const WelcomeScreen = ({ onJoinRoom }: WelcomeScreenProps) => {
               <Button
                 onClick={handleJoin}
                 className="golden-button w-full h-12 text-lg font-bold"
-                disabled={!roomCode.trim() || !userName.trim()}
+                disabled={!roomCode.trim() || !userName.trim() || isLoading}
               >
                 <Video className="w-5 h-5 ml-2 icon-3d" />
-                دخول الغرفة
+                {isLoading ? 'جاري التحقق...' : 'دخول الغرفة'}
               </Button>
 
               <div className="flex items-center gap-4">
@@ -118,9 +167,10 @@ const WelcomeScreen = ({ onJoinRoom }: WelcomeScreenProps) => {
                 className="w-full h-12 border-2 border-golden-400/50 bg-transparent text-golden-300 
                          hover:bg-golden-400/10 hover:border-golden-400 transition-all duration-300
                          hover:shadow-lg hover:scale-105"
+                disabled={isLoading}
               >
                 <Sparkles className="w-5 h-5 ml-2 icon-3d" />
-                إنشاء غرفة جديدة
+                {isLoading ? 'جاري الإنشاء...' : 'إنشاء غرفة جديدة'}
               </Button>
             </div>
 

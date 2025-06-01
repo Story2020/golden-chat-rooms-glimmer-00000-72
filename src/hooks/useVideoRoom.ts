@@ -22,21 +22,24 @@ export const useVideoRoom = ({ roomCode, userName }: UseVideoRoomProps) => {
   const [currentParticipant, setCurrentParticipant] = useState<Participant | null>(null);
   const [isVideoOn, setIsVideoOn] = useState(true);
   const [isAudioOn, setIsAudioOn] = useState(true);
+  const [roomId, setRoomId] = useState<string | null>(null);
 
   useEffect(() => {
     const joinRoom = async () => {
       try {
         // Check if room exists
-        const { data: room } = await supabase
+        const { data: room, error: roomError } = await supabase
           .from('rooms')
           .select('id')
           .eq('room_code', roomCode)
           .single();
 
-        if (!room) {
+        if (roomError || !room) {
           toast.error('الغرفة غير موجودة');
           return;
         }
+
+        setRoomId(room.id);
 
         // Add participant to room
         const { data: participant, error } = await supabase
@@ -101,7 +104,7 @@ export const useVideoRoom = ({ roomCode, userName }: UseVideoRoomProps) => {
     };
 
     joinRoom();
-  }, [roomCode, userName, isAudioOn, isVideoOn]);
+  }, [roomCode, userName]);
 
   const toggleVideo = async () => {
     if (!currentParticipant) return;
@@ -109,12 +112,23 @@ export const useVideoRoom = ({ roomCode, userName }: UseVideoRoomProps) => {
     const newVideoState = !isVideoOn;
     setIsVideoOn(newVideoState);
 
-    await supabase
-      .from('participants')
-      .update({ is_video_off: !newVideoState })
-      .eq('id', currentParticipant.id);
+    try {
+      const { error } = await supabase
+        .from('participants')
+        .update({ is_video_off: !newVideoState })
+        .eq('id', currentParticipant.id);
 
-    toast.info(newVideoState ? 'تم تشغيل الكاميرا' : 'تم إيقاف الكاميرا');
+      if (error) throw error;
+
+      // Update current participant state
+      setCurrentParticipant(prev => prev ? { ...prev, is_video_off: !newVideoState } : null);
+
+      toast.info(newVideoState ? 'تم تشغيل الكاميرا' : 'تم إيقاف الكاميرا');
+    } catch (error) {
+      console.error('Error toggling video:', error);
+      setIsVideoOn(!newVideoState); // Revert on error
+      toast.error('خطأ في تغيير حالة الكاميرا');
+    }
   };
 
   const toggleAudio = async () => {
@@ -123,12 +137,23 @@ export const useVideoRoom = ({ roomCode, userName }: UseVideoRoomProps) => {
     const newAudioState = !isAudioOn;
     setIsAudioOn(newAudioState);
 
-    await supabase
-      .from('participants')
-      .update({ is_muted: !newAudioState })
-      .eq('id', currentParticipant.id);
+    try {
+      const { error } = await supabase
+        .from('participants')
+        .update({ is_muted: !newAudioState })
+        .eq('id', currentParticipant.id);
 
-    toast.info(newAudioState ? 'تم تشغيل الصوت' : 'تم كتم الصوت');
+      if (error) throw error;
+
+      // Update current participant state
+      setCurrentParticipant(prev => prev ? { ...prev, is_muted: !newAudioState } : null);
+
+      toast.info(newAudioState ? 'تم تشغيل الصوت' : 'تم كتم الصوت');
+    } catch (error) {
+      console.error('Error toggling audio:', error);
+      setIsAudioOn(!newAudioState); // Revert on error
+      toast.error('خطأ في تغيير حالة الصوت');
+    }
   };
 
   const leaveRoom = async () => {
