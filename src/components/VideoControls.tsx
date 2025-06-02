@@ -44,6 +44,7 @@ const VideoControls = ({
         displayStream.getVideoTracks()[0].addEventListener('ended', () => {
           console.log('Screen sharing ended by user');
           toast.info('تم إيقاف مشاركة الشاشة');
+          onToggleScreenShare();
         });
       } else {
         console.log('Stopping screen share');
@@ -53,12 +54,14 @@ const VideoControls = ({
       onToggleScreenShare();
     } catch (error) {
       console.error('Error with screen sharing:', error);
-      if (error.name === 'NotAllowedError') {
-        toast.error('تم رفض إذن مشاركة الشاشة');
-      } else if (error.name === 'NotSupportedError') {
-        toast.error('مشاركة الشاشة غير مدعومة في هذا المتصفح');
-      } else {
-        toast.error('خطأ في مشاركة الشاشة');
+      if (error instanceof Error) {
+        if (error.name === 'NotAllowedError') {
+          toast.error('تم رفض إذن مشاركة الشاشة');
+        } else if (error.name === 'NotSupportedError') {
+          toast.error('مشاركة الشاشة غير مدعومة في هذا المتصفح');
+        } else {
+          toast.error('خطأ في مشاركة الشاشة');
+        }
       }
     }
   };
@@ -66,18 +69,24 @@ const VideoControls = ({
   const handleToggleAudio = () => {
     console.log('Audio button clicked, current state:', isAudioOn);
     onToggleAudio();
-    toast.success(isAudioOn ? 'تم كتم الصوت' : 'تم تشغيل الصوت');
+    // Toast will be shown after state update
+    setTimeout(() => {
+      toast.success(!isAudioOn ? 'تم تشغيل الصوت' : 'تم كتم الصوت');
+    }, 100);
   };
 
   const handleToggleVideo = () => {
     console.log('Video button clicked, current state:', isVideoOn);
     onToggleVideo();
-    toast.success(isVideoOn ? 'تم إيقاف الكاميرا' : 'تم تشغيل الكاميرا');
+    // Toast will be shown after state update
+    setTimeout(() => {
+      toast.success(!isVideoOn ? 'تم تشغيل الكاميرا' : 'تم إيقاف الكاميرا');
+    }, 100);
   };
 
   const handleLeaveRoom = () => {
     console.log('Leave room clicked');
-    if (confirm('هل أنت متأكد من مغادرة الغرفة؟')) {
+    if (window.confirm('هل أنت متأكد من مغادرة الغرفة؟')) {
       onLeaveRoom();
       toast.success('تم مغادرة الغرفة');
     }

@@ -1,5 +1,5 @@
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import ParticipantCard from './ParticipantCard';
 
@@ -24,25 +24,46 @@ const VideoGrid = ({ participants, currentParticipant, userName, isVideoOn, show
   const videoRef = useRef<HTMLVideoElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [hasPermissions, setHasPermissions] = useState(false);
+  const [permissionRequested, setPermissionRequested] = useState(false);
 
   console.log('VideoGrid rendering with participants:', participants.length);
   console.log('Current participant:', currentParticipant?.display_name);
 
-  // Auto-request permissions on component mount
-  useEffect(() => {
-    let mounted = true;
+  // Function to request media permissions with better error handling
+  const requestPermissions = useCallback(async () => {
+    if (permissionRequested) return;
+    
+    setPermissionRequested(true);
+    let mediaStream: MediaStream | null = null;
 
-    const requestPermissions = async () => {
+    try {
+      console.log('Requesting camera and microphone permissions...');
+      
+      // Try to get both video and audio first
+      mediaStream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: 'user'
+        }, 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      });
+      
+      console.log('Full media permissions granted');
+      setStream(mediaStream);
+      setHasPermissions(true);
+      toast.success('تم الحصول على صلاحيات الكاميرا والميكروفون');
+      
+    } catch (error) {
+      console.error('Error getting full media permissions:', error);
+      
+      // Try audio only as fallback
       try {
-        console.log('Auto-requesting camera and microphone permissions...');
-        
-        // Request both video and audio permissions automatically
-        const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-          video: { 
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: 'user'
-          }, 
+        mediaStream = await navigator.mediaDevices.getUserMedia({ 
           audio: {
             echoCancellation: true,
             noiseSuppression: true,
@@ -50,54 +71,36 @@ const VideoGrid = ({ participants, currentParticipant, userName, isVideoOn, show
           }
         });
         
-        if (!mounted) {
-          mediaStream.getTracks().forEach(track => track.stop());
-          return;
-        }
-
-        console.log('Media stream obtained successfully');
+        console.log('Audio-only permissions granted');
         setStream(mediaStream);
-        setHasPermissions(true);
+        setHasPermissions(false); // No video permission
+        toast.warning('تم الحصول على صلاحية الميكروفون فقط');
         
-        // Immediately set up video if enabled
-        if (isVideoOn && videoRef.current) {
-          videoRef.current.srcObject = mediaStream;
-          videoRef.current.play().catch(e => console.log('Auto-play prevented:', e));
-        }
-        
-        console.log('Permissions granted and stream set up successfully');
-        toast.success('تم الحصول على صلاحيات الكاميرا والميكروفون');
-      } catch (error) {
-        console.error('Error getting media permissions:', error);
-        
-        if (!mounted) return;
-        
+      } catch (audioError) {
+        console.error('Failed to get any media permissions:', audioError);
         setHasPermissions(false);
         
-        // Try to get at least audio if video fails
-        try {
-          const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          if (mounted) {
-            setStream(audioStream);
-            toast.warning('تم الحصول على صلاحية الميكروفون فقط');
+        if (error instanceof Error) {
+          if (error.name === 'NotAllowedError') {
+            toast.error('تم رفض صلاحيات الكاميرا والميكروفون. يرجى السماح بالوصول من إعدادات المتصفح.');
+          } else if (error.name === 'NotFoundError') {
+            toast.error('لم يتم العثور على كاميرا أو ميكروفون');
           } else {
-            audioStream.getTracks().forEach(track => track.stop());
-          }
-        } catch (audioError) {
-          console.error('Failed to get audio as well:', audioError);
-          if (mounted) {
-            toast.error('لا يمكن الوصول إلى الكاميرا أو الميكروفون');
+            toast.error('خطأ في الوصول إلى الكاميرا أو الميكروفون');
           }
         }
       }
-    };
+    }
 
-    // Auto-request permissions immediately
+    return mediaStream;
+  }, [permissionRequested]);
+
+  // Auto-request permissions on component mount
+  useEffect(() => {
     requestPermissions();
     
     // Cleanup function
     return () => {
-      mounted = false;
       if (stream) {
         console.log('Cleaning up media stream');
         stream.getTracks().forEach(track => {
@@ -130,6 +133,11 @@ const VideoGrid = ({ participants, currentParticipant, userName, isVideoOn, show
       if (videoTrack) {
         videoTrack.enabled = false;
         console.log('Video track disabled');
+      }
+      
+      // Clear video element if no video
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
       }
     }
   }, [isVideoOn, stream, hasPermissions]);

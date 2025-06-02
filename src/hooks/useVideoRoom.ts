@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -23,7 +23,30 @@ export const useVideoRoom = ({ roomCode, userName }: UseVideoRoomProps) => {
   const [isVideoOn, setIsVideoOn] = useState(true);
   const [isAudioOn, setIsAudioOn] = useState(true);
   const [roomId, setRoomId] = useState<string | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
   const cleanupRef = useRef<(() => void) | null>(null);
+
+  const loadParticipants = useCallback(async (roomId: string) => {
+    try {
+      console.log('Loading participants for room:', roomId);
+      
+      const { data, error } = await supabase
+        .from('participants')
+        .select('*')
+        .eq('room_id', roomId)
+        .eq('is_online', true);
+
+      if (error) {
+        console.error('Error loading participants:', error);
+        return;
+      }
+
+      console.log('Participants loaded:', data);
+      setParticipants(data || []);
+    } catch (error) {
+      console.error('Error in loadParticipants:', error);
+    }
+  }, []);
 
   useEffect(() => {
     const joinRoom = async () => {
@@ -101,24 +124,6 @@ export const useVideoRoom = ({ roomCode, userName }: UseVideoRoomProps) => {
       }
     };
 
-    const loadParticipants = async (roomId: string) => {
-      console.log('Loading participants for room:', roomId);
-      
-      const { data, error } = await supabase
-        .from('participants')
-        .select('*')
-        .eq('room_id', roomId)
-        .eq('is_online', true);
-
-      if (error) {
-        console.error('Error loading participants:', error);
-        return;
-      }
-
-      console.log('Participants loaded:', data);
-      setParticipants(data || []);
-    };
-
     if (roomCode && userName) {
       joinRoom();
     }
@@ -128,16 +133,20 @@ export const useVideoRoom = ({ roomCode, userName }: UseVideoRoomProps) => {
         cleanupRef.current();
       }
     };
-  }, [roomCode, userName]);
+  }, [roomCode, userName, loadParticipants]);
 
-  const toggleVideo = async () => {
-    if (!currentParticipant) {
-      console.log('No current participant for video toggle');
+  const toggleVideo = useCallback(async () => {
+    if (!currentParticipant || isUpdating) {
+      console.log('Cannot toggle video: no participant or updating');
       return;
     }
 
+    setIsUpdating(true);
     const newVideoState = !isVideoOn;
     console.log('Toggling video to:', newVideoState);
+
+    // Update local state immediately for better UX
+    setIsVideoOn(newVideoState);
 
     try {
       const { error } = await supabase
@@ -147,28 +156,35 @@ export const useVideoRoom = ({ roomCode, userName }: UseVideoRoomProps) => {
 
       if (error) {
         console.error('Database error toggling video:', error);
+        // Revert local state on error
+        setIsVideoOn(!newVideoState);
         throw error;
       }
 
-      setIsVideoOn(newVideoState);
+      // Update current participant state
       setCurrentParticipant(prev => prev ? { ...prev, is_video_off: !newVideoState } : null);
 
       console.log('Video state updated successfully:', newVideoState);
-      toast.success(newVideoState ? 'تم تشغيل الكاميرا' : 'تم إيقاف الكاميرا');
     } catch (error) {
       console.error('Error toggling video:', error);
       toast.error('خطأ في تغيير حالة الكاميرا');
+    } finally {
+      setIsUpdating(false);
     }
-  };
+  }, [currentParticipant, isVideoOn, isUpdating]);
 
-  const toggleAudio = async () => {
-    if (!currentParticipant) {
-      console.log('No current participant for audio toggle');
+  const toggleAudio = useCallback(async () => {
+    if (!currentParticipant || isUpdating) {
+      console.log('Cannot toggle audio: no participant or updating');
       return;
     }
 
+    setIsUpdating(true);
     const newAudioState = !isAudioOn;
     console.log('Toggling audio to:', newAudioState);
+
+    // Update local state immediately for better UX
+    setIsAudioOn(newAudioState);
 
     try {
       const { error } = await supabase
@@ -178,21 +194,24 @@ export const useVideoRoom = ({ roomCode, userName }: UseVideoRoomProps) => {
 
       if (error) {
         console.error('Database error toggling audio:', error);
+        // Revert local state on error
+        setIsAudioOn(!newAudioState);
         throw error;
       }
 
-      setIsAudioOn(newAudioState);
+      // Update current participant state
       setCurrentParticipant(prev => prev ? { ...prev, is_muted: !newAudioState } : null);
 
       console.log('Audio state updated successfully:', newAudioState);
-      toast.success(newAudioState ? 'تم تشغيل الصوت' : 'تم كتم الصوت');
     } catch (error) {
       console.error('Error toggling audio:', error);
       toast.error('خطأ في تغيير حالة الصوت');
+    } finally {
+      setIsUpdating(false);
     }
-  };
+  }, [currentParticipant, isAudioOn, isUpdating]);
 
-  const leaveRoom = async () => {
+  const leaveRoom = useCallback(async () => {
     if (!currentParticipant) return;
 
     try {
@@ -203,11 +222,10 @@ export const useVideoRoom = ({ roomCode, userName }: UseVideoRoomProps) => {
         .eq('id', currentParticipant.id);
 
       console.log('Successfully left room');
-      toast.success('تم مغادرة الغرفة');
     } catch (error) {
       console.error('Error leaving room:', error);
     }
-  };
+  }, [currentParticipant]);
 
   return {
     participants,
@@ -216,6 +234,7 @@ export const useVideoRoom = ({ roomCode, userName }: UseVideoRoomProps) => {
     isAudioOn,
     toggleVideo,
     toggleAudio,
-    leaveRoom
+    leaveRoom,
+    roomId
   };
 };
