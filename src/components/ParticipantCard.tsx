@@ -1,6 +1,7 @@
 
 import { MicOff, VideoOff } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
+import { useEffect, useRef } from 'react';
 
 interface Participant {
   id: string;
@@ -15,6 +16,7 @@ interface ParticipantCardProps {
   participant: Participant;
   isCurrentUser?: boolean;
   videoRef?: React.RefObject<HTMLVideoElement>;
+  stream?: MediaStream | null;
   isVideoOn?: boolean;
   hasPermissions?: boolean;
 }
@@ -23,36 +25,37 @@ const ParticipantCard = ({
   participant, 
   isCurrentUser = false, 
   videoRef, 
+  stream,
   isVideoOn = true,
   hasPermissions = true
 }: ParticipantCardProps) => {
-  console.log('Rendering participant card:', participant, 'isCurrentUser:', isCurrentUser);
+  const otherVideoRef = useRef<HTMLVideoElement>(null);
+  
+  console.log('Rendering participant card:', participant.display_name, 'isCurrentUser:', isCurrentUser, 'hasStream:', !!stream);
   
   const shouldShowVideo = isCurrentUser ? (isVideoOn && hasPermissions) : !participant.is_video_off;
   const isMuted = isCurrentUser ? !isVideoOn : participant.is_muted;
 
+  // Handle video stream for non-current users
+  useEffect(() => {
+    if (!isCurrentUser && stream && otherVideoRef.current && shouldShowVideo) {
+      console.log('Setting video stream for participant:', participant.display_name);
+      otherVideoRef.current.srcObject = stream;
+      otherVideoRef.current.play().catch(e => console.log('Video play error for participant:', e));
+    }
+  }, [stream, shouldShowVideo, isCurrentUser, participant.display_name]);
+
   return (
     <Card className={`glass-card ${isCurrentUser ? 'border-2 border-golden-400/50' : 'border border-golden-400/30'} relative overflow-hidden h-64 md:h-80`}>
       <CardContent className="p-0 h-full relative">
-        {isCurrentUser && shouldShowVideo ? (
+        {shouldShowVideo && (isCurrentUser || stream) ? (
           <video
-            ref={videoRef}
+            ref={isCurrentUser ? videoRef : otherVideoRef}
             autoPlay
             playsInline
-            muted
+            muted={isCurrentUser}
             className="w-full h-full object-cover rounded-lg"
           />
-        ) : shouldShowVideo ? (
-          <div className="w-full h-full bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-golden-gradient rounded-full flex items-center justify-center mx-auto mb-2">
-                <span className="text-black font-bold text-xl">
-                  {participant.display_name.charAt(0).toUpperCase()}
-                </span>
-              </div>
-              <p className="text-golden-200 text-sm">فيديو المشارك</p>
-            </div>
-          </div>
         ) : (
           <div className="w-full h-full bg-black/70 flex items-center justify-center">
             <div className="text-center">

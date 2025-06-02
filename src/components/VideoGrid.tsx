@@ -25,6 +25,7 @@ const VideoGrid = ({ participants, currentParticipant, userName, isVideoOn, show
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [hasPermissions, setHasPermissions] = useState(false);
   const [permissionStatus, setPermissionStatus] = useState<'requesting' | 'granted' | 'denied' | 'idle'>('idle');
+  const [participantStreams, setParticipantStreams] = useState<Map<string, MediaStream>>(new Map());
 
   console.log('VideoGrid rendering:', { 
     participantsCount: participants.length, 
@@ -77,6 +78,19 @@ const VideoGrid = ({ participants, currentParticipant, userName, isVideoOn, show
     }
   }, [permissionStatus]);
 
+  // Simulate getting streams for other participants (in real implementation, this would come from WebRTC)
+  const getParticipantStream = useCallback(async (participantId: string) => {
+    // In a real implementation, this would establish WebRTC connections
+    // For now, we'll create a mock stream or use the same stream for demonstration
+    if (!participantStreams.has(participantId) && stream) {
+      console.log('Creating stream for participant:', participantId);
+      // In real implementation, this would be the participant's actual stream
+      // For now, we'll clone the current user's stream as a placeholder
+      const clonedStream = stream.clone();
+      setParticipantStreams(prev => new Map(prev.set(participantId, clonedStream)));
+    }
+  }, [stream, participantStreams]);
+
   // Initialize permissions on mount
   useEffect(() => {
     if (permissionStatus === 'idle') {
@@ -90,6 +104,10 @@ const VideoGrid = ({ participants, currentParticipant, userName, isVideoOn, show
           track.stop();
         });
       }
+      // Clean up participant streams
+      participantStreams.forEach(stream => {
+        stream.getTracks().forEach(track => track.stop());
+      });
     };
   }, [requestPermissions]);
 
@@ -119,6 +137,15 @@ const VideoGrid = ({ participants, currentParticipant, userName, isVideoOn, show
     }
   }, [isVideoOn, stream, hasPermissions]);
 
+  // Get streams for other participants
+  useEffect(() => {
+    participants.forEach(participant => {
+      if (participant.id !== currentParticipant?.id && !participant.is_video_off) {
+        getParticipantStream(participant.id);
+      }
+    });
+  }, [participants, currentParticipant?.id, getParticipantStream]);
+
   // Calculate grid layout
   const totalParticipants = participants.length;
   const getGridCols = () => {
@@ -132,6 +159,7 @@ const VideoGrid = ({ participants, currentParticipant, userName, isVideoOn, show
     <div className={`${showChat ? 'lg:col-span-3' : 'lg:col-span-4'} grid ${getGridCols()} gap-4 h-full`}>
       {participants.map((participant) => {
         const isCurrentUser = participant.id === currentParticipant?.id;
+        const participantStream = isCurrentUser ? stream : participantStreams.get(participant.id);
         
         return (
           <ParticipantCard
@@ -139,6 +167,7 @@ const VideoGrid = ({ participants, currentParticipant, userName, isVideoOn, show
             participant={participant}
             isCurrentUser={isCurrentUser}
             videoRef={isCurrentUser ? videoRef : undefined}
+            stream={participantStream}
             isVideoOn={isCurrentUser ? isVideoOn : !participant.is_video_off}
             hasPermissions={isCurrentUser ? hasPermissions : true}
           />
