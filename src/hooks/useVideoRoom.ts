@@ -23,13 +23,11 @@ export const useVideoRoom = ({ roomCode, userName }: UseVideoRoomProps) => {
   const [isVideoOn, setIsVideoOn] = useState(true);
   const [isAudioOn, setIsAudioOn] = useState(true);
   const [roomId, setRoomId] = useState<string | null>(null);
-  const [isUpdating, setIsUpdating] = useState(false);
   const cleanupRef = useRef<(() => void) | null>(null);
+  const isInitialized = useRef(false);
 
   const loadParticipants = useCallback(async (roomId: string) => {
     try {
-      console.log('Loading participants for room:', roomId);
-      
       const { data, error } = await supabase
         .from('participants')
         .select('*')
@@ -48,12 +46,16 @@ export const useVideoRoom = ({ roomCode, userName }: UseVideoRoomProps) => {
     }
   }, []);
 
+  // Initialize room and participant
   useEffect(() => {
-    const joinRoom = async () => {
+    if (!roomCode || !userName || isInitialized.current) return;
+
+    const initializeRoom = async () => {
       try {
-        console.log('Joining room with code:', roomCode);
-        
-        // Check if room exists
+        console.log('Initializing room:', roomCode);
+        isInitialized.current = true;
+
+        // Get room
         const { data: room, error: roomError } = await supabase
           .from('rooms')
           .select('id')
@@ -66,37 +68,37 @@ export const useVideoRoom = ({ roomCode, userName }: UseVideoRoomProps) => {
           return;
         }
 
-        console.log('Room found:', room);
         setRoomId(room.id);
 
-        // Add participant to room
-        const { data: participant, error } = await supabase
+        // Add participant
+        const { data: participant, error: participantError } = await supabase
           .from('participants')
           .insert({
             room_id: room.id,
             display_name: userName,
-            is_muted: !isAudioOn,
-            is_video_off: !isVideoOn,
+            is_muted: false,
+            is_video_off: false,
             is_online: true
           })
           .select()
           .single();
 
-        if (error) {
-          console.error('Error adding participant:', error);
-          throw error;
+        if (participantError) {
+          console.error('Error adding participant:', participantError);
+          toast.error('خطأ في الانضمام إلى الغرفة');
+          return;
         }
 
-        console.log('Participant added:', participant);
+        console.log('Participant created:', participant);
         setCurrentParticipant(participant);
         toast.success('تم الانضمام إلى الغرفة بنجاح');
 
-        // Load all participants initially
+        // Load participants
         await loadParticipants(room.id);
 
-        // Listen for participant changes
+        // Setup real-time subscription
         const channel = supabase
-          .channel(`room-participants-${room.id}`)
+          .channel(`room-participants-${room.id}-${Date.now()}`)
           .on(
             'postgres_changes',
             {
@@ -106,27 +108,26 @@ export const useVideoRoom = ({ roomCode, userName }: UseVideoRoomProps) => {
               filter: `room_id=eq.${room.id}`
             },
             (payload) => {
-              console.log('Participant change detected:', payload);
+              console.log('Participant change:', payload);
               loadParticipants(room.id);
             }
           )
           .subscribe((status) => {
-            console.log('Subscription status:', status);
+            console.log('Participant subscription status:', status);
           });
 
         cleanupRef.current = () => {
-          console.log('Cleaning up subscription');
+          console.log('Cleaning up participant subscription');
           supabase.removeChannel(channel);
         };
+
       } catch (error) {
-        console.error('Error joining room:', error);
-        toast.error('خطأ في الانضمام إلى الغرفة');
+        console.error('Error initializing room:', error);
+        toast.error('خطأ في إعداد الغرفة');
       }
     };
 
-    if (roomCode && userName) {
-      joinRoom();
-    }
+    initializeRoom();
 
     return () => {
       if (cleanupRef.current) {
@@ -136,16 +137,15 @@ export const useVideoRoom = ({ roomCode, userName }: UseVideoRoomProps) => {
   }, [roomCode, userName, loadParticipants]);
 
   const toggleVideo = useCallback(async () => {
-    if (!currentParticipant || isUpdating) {
-      console.log('Cannot toggle video: no participant or updating');
+    if (!currentParticipant) {
+      console.log('No current participant for video toggle');
       return;
     }
 
-    setIsUpdating(true);
     const newVideoState = !isVideoOn;
-    console.log('Toggling video to:', newVideoState);
+    console.log('Toggling video:', newVideoState);
 
-    // Update local state immediately for better UX
+    // Update local state immediately
     setIsVideoOn(newVideoState);
 
     try {
@@ -155,35 +155,34 @@ export const useVideoRoom = ({ roomCode, userName }: UseVideoRoomProps) => {
         .eq('id', currentParticipant.id);
 
       if (error) {
-        console.error('Database error toggling video:', error);
-        // Revert local state on error
+        console.error('Error updating video state:', error);
+        // Revert on error
         setIsVideoOn(!newVideoState);
-        throw error;
+        toast.error('خطأ في تغيير حالة الكاميرا');
+        return;
       }
 
-      // Update current participant state
+      // Update current participant
       setCurrentParticipant(prev => prev ? { ...prev, is_video_off: !newVideoState } : null);
+      console.log('Video state updated successfully');
 
-      console.log('Video state updated successfully:', newVideoState);
     } catch (error) {
-      console.error('Error toggling video:', error);
+      console.error('Error in toggleVideo:', error);
+      setIsVideoOn(!newVideoState);
       toast.error('خطأ في تغيير حالة الكاميرا');
-    } finally {
-      setIsUpdating(false);
     }
-  }, [currentParticipant, isVideoOn, isUpdating]);
+  }, [currentParticipant, isVideoOn]);
 
   const toggleAudio = useCallback(async () => {
-    if (!currentParticipant || isUpdating) {
-      console.log('Cannot toggle audio: no participant or updating');
+    if (!currentParticipant) {
+      console.log('No current participant for audio toggle');
       return;
     }
 
-    setIsUpdating(true);
     const newAudioState = !isAudioOn;
-    console.log('Toggling audio to:', newAudioState);
+    console.log('Toggling audio:', newAudioState);
 
-    // Update local state immediately for better UX
+    // Update local state immediately
     setIsAudioOn(newAudioState);
 
     try {
@@ -193,35 +192,34 @@ export const useVideoRoom = ({ roomCode, userName }: UseVideoRoomProps) => {
         .eq('id', currentParticipant.id);
 
       if (error) {
-        console.error('Database error toggling audio:', error);
-        // Revert local state on error
+        console.error('Error updating audio state:', error);
+        // Revert on error
         setIsAudioOn(!newAudioState);
-        throw error;
+        toast.error('خطأ في تغيير حالة الصوت');
+        return;
       }
 
-      // Update current participant state
+      // Update current participant
       setCurrentParticipant(prev => prev ? { ...prev, is_muted: !newAudioState } : null);
+      console.log('Audio state updated successfully');
 
-      console.log('Audio state updated successfully:', newAudioState);
     } catch (error) {
-      console.error('Error toggling audio:', error);
+      console.error('Error in toggleAudio:', error);
+      setIsAudioOn(!newAudioState);
       toast.error('خطأ في تغيير حالة الصوت');
-    } finally {
-      setIsUpdating(false);
     }
-  }, [currentParticipant, isAudioOn, isUpdating]);
+  }, [currentParticipant, isAudioOn]);
 
   const leaveRoom = useCallback(async () => {
     if (!currentParticipant) return;
 
     try {
-      console.log('Leaving room for participant:', currentParticipant.id);
       await supabase
         .from('participants')
         .update({ is_online: false })
         .eq('id', currentParticipant.id);
 
-      console.log('Successfully left room');
+      console.log('Left room successfully');
     } catch (error) {
       console.error('Error leaving room:', error);
     }

@@ -24,23 +24,24 @@ const VideoGrid = ({ participants, currentParticipant, userName, isVideoOn, show
   const videoRef = useRef<HTMLVideoElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [hasPermissions, setHasPermissions] = useState(false);
-  const [permissionRequested, setPermissionRequested] = useState(false);
+  const [permissionStatus, setPermissionStatus] = useState<'requesting' | 'granted' | 'denied' | 'idle'>('idle');
 
-  console.log('VideoGrid rendering with participants:', participants.length);
-  console.log('Current participant:', currentParticipant?.display_name);
+  console.log('VideoGrid rendering:', { 
+    participantsCount: participants.length, 
+    currentParticipant: currentParticipant?.display_name,
+    isVideoOn,
+    hasPermissions 
+  });
 
-  // Function to request media permissions with better error handling
+  // Request media permissions
   const requestPermissions = useCallback(async () => {
-    if (permissionRequested) return;
+    if (permissionStatus === 'requesting') return;
     
-    setPermissionRequested(true);
-    let mediaStream: MediaStream | null = null;
+    setPermissionStatus('requesting');
+    console.log('Requesting media permissions...');
 
     try {
-      console.log('Requesting camera and microphone permissions...');
-      
-      // Try to get both video and audio first
-      mediaStream = await navigator.mediaDevices.getUserMedia({ 
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
           width: { ideal: 1280 },
           height: { ideal: 720 },
@@ -53,69 +54,50 @@ const VideoGrid = ({ participants, currentParticipant, userName, isVideoOn, show
         }
       });
       
-      console.log('Full media permissions granted');
+      console.log('Media permissions granted:', mediaStream);
       setStream(mediaStream);
       setHasPermissions(true);
+      setPermissionStatus('granted');
       toast.success('تم الحصول على صلاحيات الكاميرا والميكروفون');
       
     } catch (error) {
-      console.error('Error getting full media permissions:', error);
+      console.error('Media permissions error:', error);
+      setHasPermissions(false);
+      setPermissionStatus('denied');
       
-      // Try audio only as fallback
-      try {
-        mediaStream = await navigator.mediaDevices.getUserMedia({ 
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true
-          }
-        });
-        
-        console.log('Audio-only permissions granted');
-        setStream(mediaStream);
-        setHasPermissions(false); // No video permission
-        toast.warning('تم الحصول على صلاحية الميكروفون فقط');
-        
-      } catch (audioError) {
-        console.error('Failed to get any media permissions:', audioError);
-        setHasPermissions(false);
-        
-        if (error instanceof Error) {
-          if (error.name === 'NotAllowedError') {
-            toast.error('تم رفض صلاحيات الكاميرا والميكروفون. يرجى السماح بالوصول من إعدادات المتصفح.');
-          } else if (error.name === 'NotFoundError') {
-            toast.error('لم يتم العثور على كاميرا أو ميكروفون');
-          } else {
-            toast.error('خطأ في الوصول إلى الكاميرا أو الميكروفون');
-          }
+      if (error instanceof Error) {
+        if (error.name === 'NotAllowedError') {
+          toast.error('تم رفض صلاحيات الكاميرا. يرجى السماح بالوصول من إعدادات المتصفح.');
+        } else if (error.name === 'NotFoundError') {
+          toast.error('لم يتم العثور على كاميرا أو ميكروفون');
+        } else {
+          toast.error('خطأ في الوصول إلى الكاميرا');
         }
       }
     }
+  }, [permissionStatus]);
 
-    return mediaStream;
-  }, [permissionRequested]);
-
-  // Auto-request permissions on component mount
+  // Initialize permissions on mount
   useEffect(() => {
-    requestPermissions();
-    
-    // Cleanup function
+    if (permissionStatus === 'idle') {
+      requestPermissions();
+    }
+
     return () => {
       if (stream) {
         console.log('Cleaning up media stream');
         stream.getTracks().forEach(track => {
           track.stop();
-          console.log('Stopped track:', track.kind);
         });
       }
     };
-  }, []); // Empty dependency array to run only once
+  }, [requestPermissions]);
 
-  // Handle video on/off state changes
+  // Handle video element and stream
   useEffect(() => {
     if (!stream || !videoRef.current) return;
 
-    console.log('Video state changed:', isVideoOn, 'hasPermissions:', hasPermissions);
+    console.log('Setting video stream:', { isVideoOn, hasPermissions });
 
     if (isVideoOn && hasPermissions) {
       videoRef.current.srcObject = stream;
@@ -128,21 +110,16 @@ const VideoGrid = ({ participants, currentParticipant, userName, isVideoOn, show
         console.log('Video track enabled');
       }
     } else {
-      // Disable video track but keep stream
+      // Disable video track
       const videoTrack = stream.getVideoTracks()[0];
       if (videoTrack) {
         videoTrack.enabled = false;
         console.log('Video track disabled');
       }
-      
-      // Clear video element if no video
-      if (videoRef.current) {
-        videoRef.current.srcObject = null;
-      }
     }
   }, [isVideoOn, stream, hasPermissions]);
 
-  // Calculate grid layout based on participants and chat visibility
+  // Calculate grid layout
   const totalParticipants = participants.length;
   const getGridCols = () => {
     if (totalParticipants === 1) return 'grid-cols-1';
@@ -155,7 +132,6 @@ const VideoGrid = ({ participants, currentParticipant, userName, isVideoOn, show
     <div className={`${showChat ? 'lg:col-span-3' : 'lg:col-span-4'} grid ${getGridCols()} gap-4 h-full`}>
       {participants.map((participant) => {
         const isCurrentUser = participant.id === currentParticipant?.id;
-        console.log('Rendering participant:', participant.display_name, 'isCurrentUser:', isCurrentUser);
         
         return (
           <ParticipantCard

@@ -28,9 +28,9 @@ export const useChat = ({ roomCode, participantId }: UseChatProps) => {
 
   const loadMessages = useCallback(async (roomId: string) => {
     try {
-      console.log('Loading messages for room ID:', roomId);
+      console.log('Loading messages for room:', roomId);
 
-      const { data: messagesData, error: messagesError } = await supabase
+      const { data: messagesData, error } = await supabase
         .from('messages')
         .select(`
           *,
@@ -41,28 +41,26 @@ export const useChat = ({ roomCode, participantId }: UseChatProps) => {
         .eq('room_id', roomId)
         .order('created_at', { ascending: true });
 
-      if (messagesError) {
-        console.error('Error loading messages:', messagesError);
-        throw messagesError;
+      if (error) {
+        console.error('Error loading messages:', error);
+        return;
       }
 
-      console.log('Messages loaded successfully:', messagesData?.length || 0, 'messages');
+      console.log('Messages loaded:', messagesData?.length || 0);
       setMessages(messagesData || []);
     } catch (error) {
       console.error('Error in loadMessages:', error);
-      toast.error('خطأ في تحميل الرسائل');
     }
   }, []);
 
   useEffect(() => {
     if (!participantId || !roomCode || isSetupRef.current) {
-      console.log('Skipping chat setup:', { participantId, roomCode, alreadySetup: isSetupRef.current });
       return;
     }
 
     const setupChat = async () => {
       try {
-        console.log('Setting up chat for room:', roomCode, 'participant:', participantId);
+        console.log('Setting up chat for:', roomCode);
         setIsLoading(true);
         isSetupRef.current = true;
         
@@ -75,18 +73,16 @@ export const useChat = ({ roomCode, participantId }: UseChatProps) => {
 
         if (roomError || !room) {
           console.error('Room not found for chat:', roomError);
-          toast.error('لا يمكن تحميل الدردشة - الغرفة غير موجودة');
+          toast.error('خطأ في تحميل الدردشة');
           return;
         }
 
         setRoomId(room.id);
-
-        // Load existing messages
         await loadMessages(room.id);
 
-        // Set up real-time subscription for new messages
+        // Setup real-time subscription
         const channel = supabase
-          .channel(`room-messages-${room.id}-${Date.now()}`)
+          .channel(`chat-messages-${room.id}-${Date.now()}`)
           .on(
             'postgres_changes',
             {
@@ -96,10 +92,9 @@ export const useChat = ({ roomCode, participantId }: UseChatProps) => {
               filter: `room_id=eq.${room.id}`
             },
             async (payload) => {
-              console.log('New message received via subscription:', payload);
+              console.log('New message received:', payload);
               
               try {
-                // Get participant info for the new message
                 const { data: participant } = await supabase
                   .from('participants')
                   .select('display_name')
@@ -111,14 +106,9 @@ export const useChat = ({ roomCode, participantId }: UseChatProps) => {
                   participants: participant
                 } as Message;
 
-                console.log('Adding new message to state:', newMsg);
                 setMessages(prev => {
-                  // Avoid duplicates
                   const exists = prev.some(msg => msg.id === newMsg.id);
-                  if (exists) {
-                    console.log('Message already exists, skipping');
-                    return prev;
-                  }
+                  if (exists) return prev;
                   return [...prev, newMsg];
                 });
               } catch (error) {
@@ -129,10 +119,7 @@ export const useChat = ({ roomCode, participantId }: UseChatProps) => {
           .subscribe((status) => {
             console.log('Chat subscription status:', status);
             if (status === 'SUBSCRIBED') {
-              console.log('Successfully subscribed to chat updates');
-            } else if (status === 'CHANNEL_ERROR') {
-              console.error('Chat subscription error');
-              toast.error('خطأ في الاتصال بالدردشة');
+              console.log('Chat subscription active');
             }
           });
 
@@ -160,19 +147,13 @@ export const useChat = ({ roomCode, participantId }: UseChatProps) => {
 
   const sendMessage = useCallback(async () => {
     if (!newMessage.trim() || !participantId || !roomId || isLoading) {
-      console.log('Cannot send message:', { 
-        hasMessage: !!newMessage.trim(), 
-        hasParticipant: !!participantId, 
-        hasRoom: !!roomId, 
-        isLoading 
-      });
+      console.log('Cannot send message - missing requirements');
       return;
     }
 
     const messageText = newMessage.trim();
-    console.log('Attempting to send message:', messageText);
+    console.log('Sending message:', messageText);
     
-    // Clear input immediately for better UX
     setNewMessage('');
 
     try {
@@ -189,14 +170,14 @@ export const useChat = ({ roomCode, participantId }: UseChatProps) => {
       if (error) {
         console.error('Error sending message:', error);
         toast.error('خطأ في إرسال الرسالة');
-        setNewMessage(messageText); // Restore message on error
-        throw error;
+        setNewMessage(messageText);
+        return;
       }
 
       console.log('Message sent successfully');
     } catch (error) {
       console.error('Error sending message:', error);
-      // Message is already restored above in case of error
+      setNewMessage(messageText);
     } finally {
       setIsLoading(false);
     }

@@ -13,56 +13,49 @@ interface VideoRoomHeaderProps {
 const VideoRoomHeader = ({ roomCode, participantsCount, showChat, onToggleChat }: VideoRoomHeaderProps) => {
   const shareRoomCode = async () => {
     try {
-      console.log('Share button clicked for room code:', roomCode);
+      console.log('Sharing room code:', roomCode);
       
       const shareText = `انضم إلي في غرفة الفيديو شات!\nكود الغرفة: ${roomCode}\nالرابط: ${window.location.href}`;
-      const shareData = {
-        title: 'انضم إلى غرفة الفيديو شات',
-        text: shareText,
-        url: window.location.href
-      };
       
-      // Method 1: Try native share API first (works on mobile and some desktop browsers)
-      if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+      // Try native share API first
+      if (navigator.share) {
         try {
-          await navigator.share(shareData);
+          await navigator.share({
+            title: 'انضم إلى غرفة الفيديو شات',
+            text: shareText,
+            url: window.location.href
+          });
           console.log('Native share successful');
           toast.success('تم مشاركة الغرفة بنجاح');
           return;
         } catch (shareError) {
-          console.log('Native share cancelled or failed:', shareError);
-          // Continue to fallback methods
+          console.log('Native share failed, trying clipboard');
         }
       }
       
-      // Method 2: Try clipboard API
-      if (navigator.clipboard && window.isSecureContext) {
+      // Try clipboard API
+      if (navigator.clipboard) {
         try {
           await navigator.clipboard.writeText(shareText);
           console.log('Clipboard copy successful');
           toast.success('تم نسخ تفاصيل الغرفة إلى الحافظة');
           return;
         } catch (clipboardError) {
-          console.log('Clipboard copy failed:', clipboardError);
-          // Continue to final fallback
+          console.log('Clipboard failed, trying fallback');
         }
       }
       
-      // Method 3: Final fallback for older browsers
+      // Fallback method
+      const textArea = document.createElement('textarea');
+      textArea.value = shareText;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      textArea.style.top = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      
       try {
-        const textArea = document.createElement('textarea');
-        textArea.value = shareText;
-        textArea.style.position = 'fixed';
-        textArea.style.left = '-999999px';
-        textArea.style.top = '-999999px';
-        textArea.setAttribute('readonly', '');
-        document.body.appendChild(textArea);
-        
-        // Focus and select the text
-        textArea.focus();
-        textArea.select();
-        textArea.setSelectionRange(0, 99999); // For mobile devices
-        
         const successful = document.execCommand('copy');
         document.body.removeChild(textArea);
         
@@ -70,28 +63,21 @@ const VideoRoomHeader = ({ roomCode, participantsCount, showChat, onToggleChat }
           console.log('Fallback copy successful');
           toast.success('تم نسخ تفاصيل الغرفة');
         } else {
-          throw new Error('execCommand copy failed');
+          toast.info(`كود الغرفة: ${roomCode}`);
         }
       } catch (fallbackError) {
-        console.error('All copy methods failed:', fallbackError);
-        // Show manual copy option
-        const userMessage = `يرجى نسخ هذه المعلومات يدوياً:\n\nكود الغرفة: ${roomCode}\nالرابط: ${window.location.href}`;
-        
-        if (window.prompt) {
-          window.prompt('نسخ تفاصيل الغرفة:', userMessage);
-        } else {
-          toast.error('خطأ في المشاركة. كود الغرفة: ' + roomCode);
-        }
+        document.body.removeChild(textArea);
+        toast.info(`كود الغرفة: ${roomCode}`);
       }
       
     } catch (error) {
-      console.error('General error sharing room code:', error);
+      console.error('Error sharing room code:', error);
       toast.error('خطأ في مشاركة الغرفة');
     }
   };
 
   const handleToggleChat = () => {
-    console.log('Chat toggle clicked, current state:', showChat);
+    console.log('Toggle chat clicked, current state:', showChat);
     onToggleChat();
     toast.info(showChat ? 'تم إغلاق الدردشة' : 'تم فتح الدردشة');
   };

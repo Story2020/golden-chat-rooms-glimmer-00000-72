@@ -23,65 +23,45 @@ const VideoControls = ({
   onLeaveRoom
 }: VideoControlsProps) => {
   
-  const handleToggleScreenShare = async () => {
-    try {
-      console.log('Screen share toggle clicked, current state:', isScreenSharing);
-      
-      if (!isScreenSharing) {
-        // Start screen sharing
-        const displayStream = await navigator.mediaDevices.getDisplayMedia({ 
-          video: {
-            width: { ideal: 1920 },
-            height: { ideal: 1080 }
-          },
-          audio: true 
-        });
-        
-        console.log('Screen sharing started:', displayStream);
-        toast.success('تم بدء مشاركة الشاشة');
-        
-        // Listen for when user stops sharing via browser UI
-        displayStream.getVideoTracks()[0].addEventListener('ended', () => {
-          console.log('Screen sharing ended by user');
-          toast.info('تم إيقاف مشاركة الشاشة');
-          onToggleScreenShare();
-        });
-      } else {
-        console.log('Stopping screen share');
-        toast.info('تم إيقاف مشاركة الشاشة');
-      }
-      
-      onToggleScreenShare();
-    } catch (error) {
-      console.error('Error with screen sharing:', error);
-      if (error instanceof Error) {
-        if (error.name === 'NotAllowedError') {
-          toast.error('تم رفض إذن مشاركة الشاشة');
-        } else if (error.name === 'NotSupportedError') {
-          toast.error('مشاركة الشاشة غير مدعومة في هذا المتصفح');
-        } else {
-          toast.error('خطأ في مشاركة الشاشة');
-        }
-      }
-    }
-  };
-
   const handleToggleAudio = () => {
     console.log('Audio button clicked, current state:', isAudioOn);
     onToggleAudio();
-    // Toast will be shown after state update
-    setTimeout(() => {
-      toast.success(!isAudioOn ? 'تم تشغيل الصوت' : 'تم كتم الصوت');
-    }, 100);
+    toast.success(isAudioOn ? 'تم كتم الصوت' : 'تم تشغيل الصوت');
   };
 
   const handleToggleVideo = () => {
     console.log('Video button clicked, current state:', isVideoOn);
     onToggleVideo();
-    // Toast will be shown after state update
-    setTimeout(() => {
-      toast.success(!isVideoOn ? 'تم تشغيل الكاميرا' : 'تم إيقاف الكاميرا');
-    }, 100);
+    toast.success(isVideoOn ? 'تم إيقاف الكاميرا' : 'تم تشغيل الكاميرا');
+  };
+
+  const handleToggleScreenShare = async () => {
+    try {
+      console.log('Screen share toggle clicked');
+      
+      if (!isScreenSharing) {
+        const displayStream = await navigator.mediaDevices.getDisplayMedia({ 
+          video: true,
+          audio: true 
+        });
+        
+        console.log('Screen sharing started');
+        toast.success('تم بدء مشاركة الشاشة');
+        
+        displayStream.getVideoTracks()[0].addEventListener('ended', () => {
+          console.log('Screen sharing ended');
+          toast.info('تم إيقاف مشاركة الشاشة');
+          onToggleScreenShare();
+        });
+      } else {
+        toast.info('تم إيقاف مشاركة الشاشة');
+      }
+      
+      onToggleScreenShare();
+    } catch (error) {
+      console.error('Screen sharing error:', error);
+      toast.error('خطأ في مشاركة الشاشة');
+    }
   };
 
   const handleLeaveRoom = () => {
@@ -93,7 +73,6 @@ const VideoControls = ({
   };
 
   const handleSettings = () => {
-    console.log('Settings clicked');
     toast.info('الإعدادات قريباً');
   };
 
@@ -113,11 +92,7 @@ const VideoControls = ({
             }`}
             title={isAudioOn ? 'كتم الصوت' : 'تشغيل الصوت'}
           >
-            {isAudioOn ? (
-              <Mic className="w-5 h-5" />
-            ) : (
-              <MicOff className="w-5 h-5" />
-            )}
+            {isAudioOn ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
           </Button>
 
           {/* Video Toggle */}
@@ -132,11 +107,7 @@ const VideoControls = ({
             }`}
             title={isVideoOn ? 'إيقاف الكاميرا' : 'تشغيل الكاميرا'}
           >
-            {isVideoOn ? (
-              <Video className="w-5 h-5" />
-            ) : (
-              <VideoOff className="w-5 h-5" />
-            )}
+            {isVideoOn ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
           </Button>
 
           {/* Screen Share */}
